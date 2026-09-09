@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EBF0EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B110F" media="(prefers-color-scheme: dark)">
+<title>タイムカード集計</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #EBF0EF; --surface: #FFFFFF; --surface-2: #F4F7F6;
+    --line: #D5DFDC; --line-strong: #BECAC7;
+    --ink: #101E1B; --ink-2: #566A66; --ink-3: #869894;
+    --accent: #1B6152; --accent-ink: #14503F; --accent-soft: #DCEAE5; --accent-line: #A9CFC4;
+    --on-accent: #FFFFFF;
+    --out: #AC432A; --out-ink: #7C2D1B; --out-soft: #F4E1DA; --out-line: #E0B3A5;
+    --amber: #8A6212; --amber-soft: #F7EBD2;
+    --shadow-card: 0 1px 0 rgba(16,30,27,.04), 0 10px 28px -18px rgba(16,30,27,.45);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0B110F; --surface: #141D1A; --surface-2: #1B2523;
+      --line: #263330; --line-strong: #35443F;
+      --ink: #E5EEEB; --ink-2: #9BAEA9; --ink-3: #6B7E79;
+      --accent: #3FB89B; --accent-ink: #1E6A58; --accent-soft: #12302A; --accent-line: #2A6455;
+      --on-accent: #04140F;
+      --out: #E08461; --out-ink: #8A4527; --out-soft: #331C14; --out-line: #5C382C;
+      --amber: #D9A441; --amber-soft: #2E2413;
+      --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0B110F; --surface: #141D1A; --surface-2: #1B2523;
+    --line: #263330; --line-strong: #35443F;
+    --ink: #E5EEEB; --ink-2: #9BAEA9; --ink-3: #6B7E79;
+    --accent: #3FB89B; --accent-ink: #1E6A58; --accent-soft: #12302A; --accent-line: #2A6455;
+    --on-accent: #04140F;
+    --out: #E08461; --out-ink: #8A4527; --out-soft: #331C14; --out-line: #5C382C;
+    --amber: #D9A441; --amber-soft: #2E2413;
+    --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { color-scheme: light dark; -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button, input { font: inherit; color: inherit; }
+  img { max-width: 100%; }
+
+  .wrap {
+    max-width: 940px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+             calc(64px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  }
+  .top {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+    padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3); line-height: 1;
+  }
+  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: .04em; line-height: 1.3; }
+  .top a { font-size: 12.5px; color: var(--accent); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-card); padding: 18px; margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 11px; font-family: "IBM Plex Mono", monospace; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 14px;
+  }
+
+  .drop {
+    border: 2px dashed var(--accent-line); border-radius: 12px; background: var(--accent-soft);
+    padding: 30px 18px; text-align: center; cursor: pointer; transition: background .15s ease;
+  }
+  .drop:hover, .drop.over { background: var(--accent); color: var(--on-accent); }
+  .drop.over { border-style: solid; }
+  .drop-main { font-size: 16px; font-weight: 700; color: var(--accent-ink); }
+  .drop:hover .drop-main, .drop.over .drop-main { color: var(--on-accent); }
+  :root[data-theme="dark"] .drop-main { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .drop-main { color: var(--accent); } }
+  .drop-sub { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; }
+  .drop:hover .drop-sub, .drop.over .drop-sub { color: var(--on-accent); opacity: .85; }
+
+  .files { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 6px; }
+  .files li {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    font-size: 13px; padding: 8px 11px; border-radius: 9px; background: var(--surface-2);
+  }
+  .files .fname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .files .fmeta { color: var(--ink-3); font-size: 11.5px; flex: none; }
+  .files .bad { color: var(--out); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--surface-2); border-radius: 11px; padding: 12px 14px; }
+  .stat-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .stat-value { font-size: 24px; font-weight: 500; line-height: 1.2; }
+  .stat-value small { font-size: 12px; color: var(--ink-3); margin-left: 2px; }
+
+  .warn {
+    background: var(--amber-soft); border-radius: 10px; padding: 12px 14px;
+    font-size: 13px; line-height: 1.6; margin-bottom: 14px;
+  }
+  .warn b { display: block; margin-bottom: 3px; }
+  .warn ul { margin: 6px 0 0; padding-left: 1.2em; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
+  th, td { padding: 8px 11px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { background: var(--surface-2); font-weight: 700; font-size: 11.5px; color: var(--ink-2); position: sticky; top: 0; }
+  td.num { text-align: right; font-family: "IBM Plex Mono", monospace; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr.total td { font-weight: 700; background: var(--surface-2); }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .btn {
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    padding: 10px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--ink-3); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 700; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .note { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; line-height: 1.6; }
+  .empty { text-align: center; color: var(--ink-3); font-size: 13px; padding: 26px 8px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="4" y="5" width="22" height="20" rx="3" fill="none" stroke="var(--accent)" stroke-width="2"></rect>
+        <path d="M4 11h22M11 11v14" fill="none" stroke="var(--accent)" stroke-width="2"></path>
+      </svg>
+      <div>
+        <div class="brand-eyebrow">Timecard Merge</div>
+        <div class="brand-name">タイムカード集計</div>
+      </div>
+    </div>
+    <a href="./">打刻ページへ</a>
+  </header>
+
+  <section class="card">
+    <h2 class="card-title">CSVを読み込む</h2>
+    <div class="drop" id="drop" tabindex="0" role="button">
+      <div class="drop-main">ここにCSVをまとめてドロップ</div>
+      <div class="drop-sub">クリックして選ぶこともできます。社員から届いたファイルを何個でも、何か月分でも一度に。</div>
+    </div>
+    <input type="file" id="picker" accept=".csv,text/csv" multiple hidden>
+    <ul class="files" id="files"></ul>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2 class="card-title">集計結果</h2>
+    <div class="stats" id="stats"></div>
+    <div id="warnBox"></div>
+    <div class="tablewrap"><table id="summary"></table></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="xlsxBtn">Excelファイルで保存</button>
+      <button class="btn" id="csvBtn">1つのCSVで保存</button>
+      <button class="btn" id="clearBtn">読み込みをやり直す</button>
+    </div>
+    <p class="note">Excelファイルには「明細」と「月別集計」の2つのシートが入ります。明細はフィルタ付き・日付は日付として入るので、そのまま並べ替えや集計ができます。</p>
+  </section>
+
+  <section class="card" id="blank">
+    <p class="empty">CSVを読み込むと、社員別・月別の集計がここに出ます。<br>ファイルはこの端末の中だけで処理され、どこにも送信されません。</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var rows = [];        /* 明細（全社員ぶん） */
+  var fileInfo = [];    /* 読み込んだファイルの一覧 */
+  var issues = [];      /* 重複など、人が確認すべきこと */
+
+  var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
+    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳", "出勤地点", "退勤地点", "備考"];
+
+  /* ---------- CSV 読み込み ---------- */
+  function parseCsv(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);   /* BOM を落とす */
+    var out = [], row = [], cell = "", quoted = false, i = 0;
+    while (i < text.length) {
+      var c = text[i];
+      if (quoted) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { cell += '"'; i += 2; continue; }
+          quoted = false; i++; continue;
+        }
+        cell += c; i++; continue;
+      }
+      if (c === '"') { quoted = true; i++; continue; }
+      if (c === ",") { row.push(cell); cell = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(cell); out.push(row); row = []; cell = ""; i++; continue; }
+      cell += c; i++;
+    }
+    if (cell.length || row.length) { row.push(cell); out.push(row); }
+    return out.filter(function (r) { return r.some(function (v) { return v.trim() !== ""; }); });
+  }
+
+  function toRows(table, filename) {
+    if (!table.length) return { rows: [], skipped: 0, error: "中身が空です" };
+    var head = table[0].map(function (h) { return h.trim(); });
+    if (head.indexOf("社員名") < 0 || head.indexOf("日付") < 0) {
+      return { rows: [], skipped: 0, error: "タイムカードのCSVではないようです" };
+    }
+    var idx = {};
+    COLS.forEach(function (c) { idx[c] = head.indexOf(c); });
+    var got = [], skipped = 0;
+    table.slice(1).forEach(function (r) {
+      var o = {};
+      COLS.forEach(function (c) { o[c] = idx[c] >= 0 ? (r[idx[c]] || "").trim() : ""; });
+      /* 各ファイル末尾の合計行は取り込まない（あとで自分で計算する） */
+      if (o["日付"] === "合計" || !/^\d{4}-\d{2}-\d{2}$/.test(o["日付"])) { skipped++; return; }
+      o["_hours"] = parseFloat(o["実働(時間換算)"]) || 0;
+      o["_file"] = filename;
+      got.push(o);
+    });
+    return { rows: got, skipped: skipped, error: null };
+  }
+
+  function keyOf(o) {
+    return [o["社員名"], o["日付"], o["出勤"], o["退勤"], o["実働時間"]].join("");
+  }
+
+  function rebuild() {
+    /* 同じ内容の行が複数ファイルに入っていても1つにする */
+    var seen = {}, merged = [];
+    rows.forEach(function (o) {
+      var k = keyOf(o);
+      if (seen[k]) { seen[k]._dupFiles.push(o._file); return; }
+      o._dupFiles = [o._file];
+      seen[k] = o;
+      merged.push(o);
+    });
+
+    /* 同じ人・同じ日で内容が違う行は、人が見て判断する必要がある */
+    var byDay = {};
+    merged.forEach(function (o) {
+      var k = o["社員名"] + "" + o["日付"];
+      (byDay[k] = byDay[k] || []).push(o);
+    });
+    issues = Object.keys(byDay).filter(function (k) { return byDay[k].length > 1; }).map(function (k) {
+      var p = k.split("");
+      return p[0] + " / " + p[1] + "（" + byDay[k].length + "件）";
+    }).sort();
+
+    merged.sort(function (a, b) {
+      return a["社員名"].localeCompare(b["社員名"], "ja") || a["日付"].localeCompare(b["日付"]);
+    });
+    return merged;
+  }
+
+  function summarize(list) {
+    var people = {}, order = [], months = {};
+    list.forEach(function (o) {
+      var m = o["日付"].slice(0, 7);
+      months[m] = 1;
+      var p = people[o["社員名"]];
+      if (!p) { p = people[o["社員名"]] = { name: o["社員名"], months: {}, days: 0, hours: 0 }; order.push(o["社員名"]); }
+      if (!p.months[m]) p.months[m] = { days: 0, hours: 0 };
+      p.months[m].days++; p.months[m].hours += o["_hours"];
+      p.days++; p.hours += o["_hours"];
+    });
+    return {
+      people: order.sort(function (a, b) { return a.localeCompare(b, "ja"); }).map(function (n) { return people[n]; }),
+      months: Object.keys(months).sort()
+    };
+  }
+
+  /* ---------- 画面 ---------- */
+  function fmtH(h) { return (Math.round(h * 100) / 100).toFixed(2); }
+  function monthLabel(m) { var p = m.split("-"); return p[0] + "年" + (+p[1]) + "月"; }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function render() {
+    $("files").innerHTML = fileInfo.map(function (f) {
+      return "<li><span class='fname" + (f.error ? " bad" : "") + "'>" + esc(f.name) + "</span>" +
+        "<span class='fmeta'>" + (f.error ? esc(f.error) : f.count + "日分") + "</span></li>";
+    }).join("");
+
+    var list = rebuild();
+    var has = list.length > 0;
+    $("result").hidden = !has;
+    $("blank").hidden = has;
+    if (!has) return;
+
+    var sum = summarize(list);
+    var totalHours = list.reduce(function (a, o) { return a + o["_hours"]; }, 0);
+    $("stats").innerHTML =
+      stat("社員数", sum.people.length, "人") +
+      stat("対象月", sum.months.length, "か月") +
+      stat("延べ出勤", list.length, "日") +
+      stat("実働合計", fmtH(totalHours), "時間");
+
+    $("warnBox").innerHTML = issues.length
+      ? "<div class='warn'><b>同じ人・同じ日の記録が複数あります（" + issues.length + "件）</b>" +
+        "重複か、1日に分けて打刻したものかを確認してください。合計にはすべて含めています。" +
+        "<ul>" + issues.slice(0, 8).map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") +
+        (issues.length > 8 ? "<li>ほか " + (issues.length - 8) + "件</li>" : "") + "</ul></div>"
+      : "";
+
+    var head = "<tr><th>社員名</th>" + sum.months.map(function (m) {
+      return "<th>" + monthLabel(m) + "</th>";
+    }).join("") + "<th>合計</th></tr>";
+    var body = sum.people.map(function (p) {
+      return "<tr><td>" + esc(p.name) + "</td>" + sum.months.map(function (m) {
+        var c = p.months[m];
+        return "<td class='num'>" + (c ? fmtH(c.hours) + " <small>(" + c.days + "日)</small>" : "—") + "</td>";
+      }).join("") + "<td class='num'>" + fmtH(p.hours) + " <small>(" + p.days + "日)</small></td></tr>";
+    }).join("");
+    var foot = "<tr class='total'><td>全員合計</td>" + sum.months.map(function (m) {
+      var h = 0, d = 0;
+      sum.people.forEach(function (p) { if (p.months[m]) { h += p.months[m].hours; d += p.months[m].days; } });
+      return "<td class='num'>" + fmtH(h) + " <small>(" + d + "日)</small></td>";
+    }).join("") + "<td class='num'>" + fmtH(totalHours) + " <small>(" + list.length + "日)</small></td></tr>";
+    $("summary").innerHTML = "<thead>" + head + "</thead><tbody>" + body + foot + "</tbody>";
+  }
+
+  function stat(label, value, unit) {
+    return "<div class='stat'><div class='stat-label'>" + label + "</div>" +
+      "<div class='stat-value mono'>" + value + "<small>" + unit + "</small></div></div>";
+  }
+
+  /* ---------- ファイル受け取り ---------- */
+  function readFiles(fileList) {
+    var arr = Array.prototype.slice.call(fileList).filter(function (f) { return /\.csv$/i.test(f.name); });
+    if (!arr.length) return;
+    var left = arr.length;
+    arr.forEach(function (f) {
+      var fr = new FileReader();
+      fr.onload = function () {
+        var res = toRows(parseCsv(String(fr.result)), f.name);
+        fileInfo.push({ name: f.name, count: res.rows.length, error: res.error });
+        rows = rows.concat(res.rows);
+        if (--left === 0) render();
+      };
+      fr.onerror = function () {
+        fileInfo.push({ name: f.name, count: 0, error: "読み込めませんでした" });
+        if (--left === 0) render();
+      };
+      fr.readAsText(f, "UTF-8");
+    });
+  }
+
+  var drop = $("drop");
+  drop.addEventListener("click", function () { $("picker").click(); });
+  drop.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("picker").click(); }
+  });
+  $("picker").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (ev) {
+    drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("over"); });
+  });
+  drop.addEventListener("drop", function (e) { readFiles(e.dataTransfer.files); });
+  window.addEventListener("dragover", function (e) { e.preventDefault(); });
+  window.addEventListener("drop", function (e) { e.preventDefault(); });
+
+  $("clearBtn").addEventListener("click", function () {
+    rows = []; fileInfo = []; issues = []; render();
+  });
+
+  /* ---------- 保存 ---------- */
+  function saveBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+  }
+  function stamp() {
+    var d = new Date(), p = function (n) { return n < 10 ? "0" + n : n; };
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate());
+  }
+
+  $("csvBtn").addEventListener("click", function () {
+    var list = rebuild();
+    var cell = function (v) {
+      var s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    var lines = [COLS.join(",")];
+    list.forEach(function (o) { lines.push(COLS.map(function (c) { return cell(o[c]); }).join(",")); });
+    saveBlob(new Blob(["﻿" + lines.join("\r\n") + "\r\n"], { type: "text/csv;charset=utf-8" }),
+      "タイムカード集計-" + stamp() + ".csv");
+  });
+
+  $("xlsxBtn").addEventListener("click", function () {
+    var list = rebuild();
+    var sum = summarize(list);
+
+    var detail = [COLS.slice()];
+    list.forEach(function (o) {
+      detail.push(COLS.map(function (c) {
+        if (c === "日付") return { d: o[c] };
+        if (c === "実働(時間換算)") {
+          var h = parseFloat(o[c]);
+          return isNaN(h) ? o[c] : { n: h };
+        }
+        if (c === "休憩(分)" || c === "現場数") {
+          var n = parseInt(o[c], 10);
+          return isNaN(n) ? o[c] : { i: n };
+        }
+        return o[c];
+      }));
+    });
+
+    var head2 = ["社員名"].concat(sum.months.map(monthLabel)).concat(["合計(時間)", "合計(日数)"]);
+    var summary = [head2];
+    sum.people.forEach(function (p) {
+      summary.push([p.name].concat(sum.months.map(function (m) {
+        return p.months[m] ? { n: Math.round(p.months[m].hours * 100) / 100 } : "";
+      })).concat([{ n: Math.round(p.hours * 100) / 100 }, { i: p.days }]));
+    });
+    var gh = 0, gd = 0;
+    summary.push(["全員合計"].concat(sum.months.map(function (m) {
+      var h = 0;
+      sum.people.forEach(function (p) { if (p.months[m]) h += p.months[m].hours; });
+      return { n: Math.round(h * 100) / 100 };
+    })).concat([
+      { n: Math.round(sum.people.reduce(function (a, p) { gh += p.hours; return a + p.hours; }, 0) * 100) / 100 },
+      { i: sum.people.reduce(function (a, p) { gd += p.days; return a + p.days; }, 0) }
+    ]));
+
+    saveBlob(buildXlsx([
+      { name: "明細", rows: detail },
+      { name: "月別集計", rows: summary }
+    ]), "タイムカード集計-" + stamp() + ".xlsx");
+  });
+
+  /* ---------- xlsx を組み立てる（外部ライブラリなし） ----------
+     xlsx は XML を集めた ZIP。圧縮なし（stored）で詰めれば Excel は問題なく開く。 */
+  function xmlEsc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c];
+    });
+  }
+  function colName(n) {
+    var s = "";
+    while (n > 0) { var r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = (n - r - 1) / 26; }
+    return s;
+  }
+  /* Excel の日付は 1899-12-30 からの経過日数 */
+  function dateSerial(iso) {
+    var p = iso.split("-");
+    return (Date.UTC(+p[0], +p[1] - 1, +p[2]) - Date.UTC(1899, 11, 30)) / 86400000;
+  }
+
+  /* 列幅の見積もり。日本語は英数字の約2倍の幅として数える。 */
+  function textWidth(v) {
+    var s;
+    if (v && typeof v === "object") s = "d" in v ? "2026/09/09" : String(("n" in v) ? v.n : v.i);
+    else s = String(v == null ? "" : v);
+    var w = 0;
+    for (var i = 0; i < s.length; i++) w += s.charCodeAt(i) > 0x2000 ? 2 : 1;
+    return w;
+  }
+
+  function sheetXml(rowsIn) {
+    var maxCol = 0;
+    rowsIn.forEach(function (r) { if (r.length > maxCol) maxCol = r.length; });
+    var body = rowsIn.map(function (r, ri) {
+      var cells = r.map(function (v, ci) {
+        var ref = colName(ci + 1) + (ri + 1);
+        if (ri === 0) return '<c r="' + ref + '" s="1" t="inlineStr"><is><t>' + xmlEsc(v) + "</t></is></c>";
+        if (v && typeof v === "object" && "d" in v) {
+          return '<c r="' + ref + '" s="2"><v>' + dateSerial(v.d) + "</v></c>";
+        }
+        if (v && typeof v === "object" && "n" in v) {
+          return '<c r="' + ref + '" s="3"><v>' + v.n + "</v></c>";
+        }
+        /* 整数（分・件数・日数）は小数点を付けずに出す */
+        if (v && typeof v === "object" && "i" in v) {
+          return '<c r="' + ref + '"><v>' + v.i + "</v></c>";
+        }
+        if (v === "" || v == null) return "";
+        return '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(v) + "</t></is></c>";
+      }).join("");
+      return '<row r="' + (ri + 1) + '">' + cells + "</row>";
+    }).join("");
+    var last = colName(maxCol) + rowsIn.length;
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<dimension ref="A1:' + last + '"/>' +
+      '<sheetViews><sheetView workbookViewId="0">' +
+      '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+      "</sheetView></sheetViews>" +
+      '<sheetFormatPr defaultRowHeight="15"/>' +
+      "<cols>" + rowsIn[0].map(function (h, i) {
+        var w = 0;
+        rowsIn.forEach(function (r) { var n = textWidth(r[i]); if (n > w) w = n; });
+        w += 3;
+        if (w > 46) w = 46;
+        if (w < 11) w = 11;
+        return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
+      }).join("") + "</cols>" +
+      "<sheetData>" + body + "</sheetData>" +
+      '<autoFilter ref="A1:' + last + '"/>' +
+      "</worksheet>";
+  }
+
+  function buildXlsx(sheets) {
+    var files = [];
+    var add = function (name, text) { files.push({ name: name, data: utf8(text) }); };
+
+    add("[Content_Types].xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+      '<Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      sheets.map(function (s, i) {
+        return '<Override PartName="/xl/worksheets/sheet' + (i + 1) +
+          '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+      }).join("") +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+      "</Types>");
+
+    add("_rels/.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+      "</Relationships>");
+
+    add("xl/workbook.xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' +
+      sheets.map(function (s, i) {
+        return '<sheet name="' + xmlEsc(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+      }).join("") + "</sheets></workbook>");
+
+    add("xl/_rels/workbook.xml.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      sheets.map(function (s, i) {
+        return '<Relationship Id="rId' + (i + 1) +
+          '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
+      }).join("") +
+      '<Relationship Id="rId' + (sheets.length + 1) +
+      '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+      "</Relationships>");
+
+    add("xl/styles.xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy/mm/dd"/></numFmts>' +
+      '<fonts count="2"><font><sz val="11"/><name val="Yu Gothic"/></font>' +
+      '<font><b/><sz val="11"/><name val="Yu Gothic"/></font></fonts>' +
+      '<fills count="2"><fill><patternFill patternType="none"/></fill>' +
+      '<fill><patternFill patternType="gray125"/></fill></fills>' +
+      "<borders count=\"1\"><border/></borders>" +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="4">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      "</cellXfs></styleSheet>");
+
+    sheets.forEach(function (s, i) { add("xl/worksheets/sheet" + (i + 1) + ".xml", sheetXml(s.rows)); });
+    return zip(files);
+  }
+
+  function utf8(str) {
+    if (window.TextEncoder) return new TextEncoder().encode(str);
+    var u = unescape(encodeURIComponent(str)), a = new Uint8Array(u.length);
+    for (var i = 0; i < u.length; i++) a[i] = u.charCodeAt(i);
+    return a;
+  }
+
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) {
+      var c = n;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(buf) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* 圧縮なし（method 0）の ZIP を組み立てる */
+  function zip(files) {
+    var parts = [], central = [], offset = 0;
+    var u16 = function (n) { return [n & 255, (n >>> 8) & 255]; };
+    var u32 = function (n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; };
+
+    files.forEach(function (f) {
+      var name = utf8(f.name);
+      var crc = crc32(f.data);
+      var local = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+        u32(crc), u32(f.data.length), u32(f.data.length), u16(name.length), u16(0));
+      parts.push(new Uint8Array(local), name, f.data);
+      central.push([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+        u32(crc), u32(f.data.length), u32(f.data.length), u16(name.length),
+        u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset)));
+      central.push(name);
+      offset += local.length + name.length + f.data.length;
+    });
+
+    var cdBytes = [], cdStart = offset;
+    central.forEach(function (c) {
+      if (c instanceof Uint8Array) { for (var i = 0; i < c.length; i++) cdBytes.push(c[i]); }
+      else cdBytes = cdBytes.concat(c);
+    });
+    var end = [].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+      u32(cdBytes.length), u32(cdStart), u16(0));
+
+    parts.push(new Uint8Array(cdBytes), new Uint8Array(end));
+    return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+
+  render();
+  window.__merge = { toRows: toRows, parseCsv: parseCsv, buildXlsx: buildXlsx,
+    push: function (r) { rows = rows.concat(r); }, render: render, rebuild: rebuild, summarize: summarize };
+})();
+</script>
+</body>
+</html>
