@@ -1,0 +1,1388 @@
+<title>現場タイムカード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #EBF0EF;
+    --surface: #FFFFFF;
+    --surface-2: #F4F7F6;
+    --line: #D5DFDC;
+    --line-strong: #BECAC7;
+    --ink: #101E1B;
+    --ink-2: #566A66;
+    --ink-3: #869894;
+    --accent: #1B6152;
+    --accent-ink: #14503F;
+    --accent-soft: #DCEAE5;
+    --accent-line: #A9CFC4;
+    --on-accent: #FFFFFF;
+    --out: #AC432A;
+    --out-ink: #7C2D1B;
+    --out-soft: #F4E1DA;
+    --out-line: #E0B3A5;
+    --on-out: #FFFFFF;
+    --amber: #8A6212;
+    --amber-soft: #F7EBD2;
+    --shadow-card: 0 1px 0 rgba(16,30,27,.04), 0 10px 28px -18px rgba(16,30,27,.45);
+    --shadow-key: 0 4px 0 var(--accent-ink), 0 12px 20px -12px rgba(16,30,27,.55);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0B110F;
+      --surface: #141D1A;
+      --surface-2: #1B2523;
+      --line: #263330;
+      --line-strong: #35443F;
+      --ink: #E5EEEB;
+      --ink-2: #9BAEA9;
+      --ink-3: #6B7E79;
+      --accent: #3FB89B;
+      --accent-ink: #1E6A58;
+      --accent-soft: #12302A;
+      --accent-line: #2A6455;
+      --on-accent: #04140F;
+      --out: #E08461;
+      --out-ink: #8A4527;
+      --out-soft: #331C14;
+      --out-line: #5C382C;
+      --on-out: #1B0B05;
+      --amber: #D9A441;
+      --amber-soft: #2E2413;
+      --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+      --shadow-key: 0 4px 0 var(--accent-ink), 0 14px 22px -14px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0B110F;
+    --surface: #141D1A;
+    --surface-2: #1B2523;
+    --line: #263330;
+    --line-strong: #35443F;
+    --ink: #E5EEEB;
+    --ink-2: #9BAEA9;
+    --ink-3: #6B7E79;
+    --accent: #3FB89B;
+    --accent-ink: #1E6A58;
+    --accent-soft: #12302A;
+    --accent-line: #2A6455;
+    --on-accent: #04140F;
+    --out: #E08461;
+    --out-ink: #8A4527;
+    --out-soft: #331C14;
+    --out-line: #5C382C;
+    --on-out: #1B0B05;
+    --amber: #D9A441;
+    --amber-soft: #2E2413;
+    --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+    --shadow-key: 0 4px 0 var(--accent-ink), 0 14px 22px -14px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { touch-action: manipulation; }
+  /* iOS は 16px 未満の入力欄でページを自動ズームするため下限を固定 */
+  input, textarea, select { font-size: 16px; -webkit-appearance: none; appearance: none; border-radius: 0; }
+  a { color: var(--accent); }
+
+  .wrap {
+    max-width: 1000px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+             calc(64px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  }
+
+  /* ---------- header ---------- */
+  .top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; padding-bottom: 14px; margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { display: block; flex: none; }
+  .brand-eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3); line-height: 1;
+  }
+  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: .04em; line-height: 1.3; }
+  .now { text-align: right; }
+  .now-time { font-size: 26px; font-weight: 500; letter-spacing: .01em; line-height: 1.1; }
+  .now-time .sec { font-size: 15px; color: var(--ink-3); }
+  .now-date { font-size: 12px; color: var(--ink-2); letter-spacing: .04em; }
+  .me-btn {
+    margin-top: 4px; background: var(--accent-soft); color: var(--accent);
+    border: 0; border-radius: 999px; padding: 3px 11px; cursor: pointer;
+    font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  }
+  .me-btn:hover { filter: brightness(.97); }
+
+  /* ---------- layout ---------- */
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+  @media (min-width: 880px) {
+    .grid { grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); }
+    .col-left { position: sticky; top: 20px; }
+  }
+  .col-left, .col-right { display: grid; gap: 16px; min-width: 0; align-content: start; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 18px;
+  }
+  .card-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 11px; font-family: "IBM Plex Mono", monospace; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0;
+  }
+  .card-note { font-size: 12px; color: var(--ink-3); }
+
+  /* ---------- 名前の設定 ---------- */
+  .gate-lead { font-size: 14px; color: var(--ink-2); margin: 0 0 14px; }
+  .gate-new { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .gate-new label { flex: 1 1 180px; }
+
+  /* ---------- status ---------- */
+  .statusrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 11px 4px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line);
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .pill[data-state="working"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .pill[data-state="working"] .dot { background: var(--accent); animation: beat 1.8s ease-in-out infinite; }
+  .pill[data-state="done"] { background: var(--out-soft); color: var(--out); border-color: transparent; }
+  .pill[data-state="done"] .dot { background: var(--out); }
+  @keyframes beat { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: .04em; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 4px 9px; border-radius: 999px;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .chip[data-geo="ok"] .dot { background: var(--accent); }
+  .chip[data-geo="locating"] .dot { background: var(--amber); animation: beat 1.2s linear infinite; }
+  .chip[data-geo="fail"] .dot { background: var(--out); }
+
+  /* ---------- readout ---------- */
+  .geo-detail {
+    margin: -6px 0 14px; padding: 10px 12px; border-radius: 10px;
+    background: var(--out-soft); color: var(--out-ink);
+    font-size: 12.5px; line-height: 1.55;
+  }
+  :root[data-theme="dark"] .geo-detail { color: var(--out); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .geo-detail { color: var(--out); } }
+
+  .readout {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 16px 14px;
+    margin-bottom: 16px;
+  }
+  .readout-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .readout-value {
+    font-size: clamp(40px, 13vw, 54px); font-weight: 500; line-height: 1.05;
+    letter-spacing: -.01em; margin: 2px 0 4px;
+  }
+  .readout-value .sec { font-size: .5em; color: var(--ink-3); }
+  .readout-sub { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+
+  /* ---------- 現場名の入力欄 ---------- */
+  .site {
+    border: 1px solid var(--accent-line);
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 13px 14px 14px;
+    margin-bottom: 16px;
+  }
+  .site-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .site-label { font-size: 15px; font-weight: 700; color: var(--accent-ink); letter-spacing: .02em; }
+  :root[data-theme="dark"] .site-label { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .site-label { color: var(--accent); } }
+  .site-state { font-size: 11px; color: var(--ink-2); }
+  .site input {
+    width: 100%; padding: 13px 14px; border-radius: 10px;
+    border: 1px solid var(--accent-line); background: var(--surface); color: var(--ink);
+    font-weight: 500;
+  }
+  .site input::placeholder { color: var(--ink-3); font-weight: 400; }
+  .site-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .site-recent:empty { display: none; }
+  .site-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+  .rc {
+    background: var(--surface); border: 1px solid var(--accent-line); color: var(--accent);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .rc:hover { background: var(--accent); color: var(--on-accent); }
+  .site-help { font-size: 11.5px; color: var(--ink-2); margin: 9px 0 0; line-height: 1.5; }
+
+  /* ---------- field + key ---------- */
+  .field { display: block; margin-bottom: 14px; }
+  .field > span {
+    display: block; font-size: 11px; letter-spacing: .1em; color: var(--ink-3);
+    text-transform: uppercase; font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .field input {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    color: var(--ink);
+  }
+  .field input::placeholder { color: var(--ink-3); }
+  input:focus-visible, button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  .key {
+    width: 100%; border: 0; cursor: pointer;
+    border-radius: 12px; padding: 18px 16px 20px;
+    background: var(--accent); color: var(--on-accent);
+    box-shadow: var(--shadow-key);
+    display: grid; gap: 2px; justify-items: center;
+    transition: transform .08s ease, box-shadow .08s ease, background .15s ease;
+  }
+  .key .key-label { font-size: 23px; font-weight: 700; letter-spacing: .3em; text-indent: .3em; line-height: 1.2; }
+  .key .key-sub { font-size: 12px; opacity: .8; letter-spacing: .06em; }
+  .key:active { transform: translateY(4px); box-shadow: 0 0 0 var(--accent-ink); }
+  .key[data-kind="out"] { background: var(--out); color: var(--on-out); box-shadow: 0 4px 0 var(--out-ink), 0 12px 20px -12px rgba(16,30,27,.55); }
+  .key[data-kind="out"]:active { box-shadow: 0 0 0 var(--out-ink); }
+  .key[disabled] { opacity: .5; cursor: progress; }
+  @media (prefers-reduced-motion: reduce) {
+    .key, .pill .dot, .chip .dot { transition: none; animation: none; }
+    .key:active { transform: none; }
+  }
+  .hint { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; text-align: center; }
+
+  /* ---------- punch log ---------- */
+  .log { display: grid; gap: 10px; }
+  .log-row {
+    display: grid; grid-template-columns: 54px auto 1fr; align-items: baseline; gap: 10px;
+    padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+  }
+  .log-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .log-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-align: center;
+    padding: 2px 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent);
+  }
+  .log-tag[data-kind="out"] { background: var(--out-soft); color: var(--out); }
+  .log-time { font-size: 19px; font-weight: 500; }
+  .log-loc { font-size: 11.5px; color: var(--ink-3); text-align: right; line-height: 1.4; }
+  .log-loc a { text-decoration: none; border-bottom: 1px solid var(--accent-line); }
+  .relocate {
+    background: none; border: 0; padding: 0; margin-top: 2px; cursor: pointer;
+    font-size: 11px; color: var(--accent); text-decoration: underline;
+  }
+
+  /* ---------- 1日の中の打刻（現場ごと） ---------- */
+  .sess { border: 1px solid var(--line); border-radius: 11px; padding: 12px; margin-bottom: 10px; }
+  .sess-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .sess-no {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--accent);
+    background: var(--accent-soft); border-radius: 6px; padding: 2px 8px;
+  }
+  .sess-dur { font-size: 13px; color: var(--ink-2); }
+  .sess-place {
+    width: 100%; padding: 9px 11px; border-radius: 9px; margin-bottom: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 500;
+  }
+  .sess-place::placeholder { color: var(--ink-3); font-weight: 400; }
+
+  .ed-sess { border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 12px; }
+  .ed-sess:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .ed-sess-no { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--ink-2); margin-bottom: 6px; }
+  .ed-del { margin-top: 10px; font-size: 12px; padding: 6px 12px; }
+  .ed-break { display: block; margin-bottom: 14px; max-width: 220px; }
+
+  .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .calc-line {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-size: 13px; color: var(--ink-2); padding: 2px 0;
+  }
+  .calc-line strong { font-weight: 500; }
+  .calc-total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line);
+  }
+  .calc-total span { font-size: 12px; letter-spacing: .1em; color: var(--ink-3); text-transform: uppercase; font-family: "IBM Plex Mono", monospace; }
+  .calc-total strong { font-size: 30px; font-weight: 500; }
+
+  /* ---------- history ---------- */
+  .month { margin-bottom: 18px; }
+  .month:last-child { margin-bottom: 0; }
+  .month-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: 6px 0 8px; border-bottom: 1px solid var(--line-strong);
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  .month-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+  .month-sum { font-size: 12px; color: var(--ink-2); }
+  .month-sum b { font-size: 15px; font-weight: 500; color: var(--ink); }
+
+  .day {
+    width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+    display: grid; grid-template-columns: 62px 1fr auto; gap: 12px; align-items: center;
+    padding: 11px 4px; border-bottom: 1px solid var(--line);
+  }
+  @media (hover: hover) { .day:hover { background: var(--surface-2); } }
+  @media (pointer: coarse) { .day { padding: 14px 4px; } .btn { padding: 11px 16px; } }
+  .day-date { font-size: 13px; color: var(--ink-2); }
+  .day-date b { font-size: 16px; font-weight: 500; color: var(--ink); }
+  .day-date .wd { font-size: 11px; margin-left: 3px; }
+  .day-date .sat { color: #3B72A8; } .day-date .sun { color: var(--out); }
+  :root[data-theme="dark"] .day-date .sat { color: #7FB0DE; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .day-date .sat { color: #7FB0DE; } }
+  .day-span { font-size: 13.5px; color: var(--ink-2); min-width: 0; }
+  .day-place {
+    display: block; font-size: 11.5px; color: var(--ink-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .day-work { font-size: 19px; font-weight: 500; text-align: right; }
+  .day-work small { font-size: 11px; color: var(--ink-3); margin-left: 2px; }
+  .day-work.open { color: var(--accent); }
+
+  .editor {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin: 8px 0 12px;
+  }
+  .editor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .editor label { display: block; }
+  .editor label > span {
+    display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .editor input {
+    width: 100%; padding: 8px 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .editor-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    padding: 8px 14px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--ink-3); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  .btn-danger { color: var(--out); border-color: var(--out-line); margin-left: auto; }
+  .editor-note { font-size: 11.5px; color: var(--ink-3); margin: 10px 0 0; }
+
+  /* ---------- 書き出し ---------- */
+  .banner {
+    background: var(--amber-soft); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+    font-size: 13px; color: var(--ink); display: flex; gap: 10px;
+    align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .export-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .export select {
+    padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink);
+  }
+  .export textarea {
+    width: 100%; height: 120px; padding: 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.5; resize: vertical;
+  }
+  .export-note { font-size: 11.5px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.5; }
+
+  .empty { text-align: center; color: var(--ink-3); font-size: 13px; padding: 24px 8px; }
+
+  .foot {
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 11.5px; color: var(--ink-3);
+  }
+  .foot-note { max-width: 46ch; line-height: 1.5; }
+  .install { max-width: none; margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="12.5" fill="none" stroke="var(--accent)" stroke-width="2"></circle>
+        <path d="M15 8v7.5l5 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path>
+        <circle cx="15" cy="15" r="1.6" fill="var(--accent)"></circle>
+      </svg>
+      <div>
+        <div class="brand-eyebrow">Time Card</div>
+        <div class="brand-name">現場タイムカード</div>
+      </div>
+    </div>
+    <div class="now">
+      <div class="now-time mono" id="nowTime">--:--<span class="sec">:--</span></div>
+      <div class="now-date" id="nowDate">&nbsp;</div>
+      <button class="me-btn" id="meBtn" hidden></button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col-left">
+      <section class="card" id="gate" hidden>
+        <div class="card-head"><h2 class="card-title">はじめに</h2></div>
+        <p class="gate-lead">お名前を登録してください。記録はこの端末の中だけに保存され、CSVに名前が入ります。</p>
+        <div class="gate-new">
+          <label class="field" style="margin:0">
+            <span>あなたの名前</span>
+            <input type="text" id="newName" placeholder="例: 田中 太郎" maxlength="20" autocomplete="name">
+          </label>
+          <button class="btn btn-primary" id="addName">はじめる</button>
+        </div>
+      </section>
+
+      <section class="card" id="punchCard" hidden>
+        <div class="statusrow">
+          <span class="pill" id="pill" data-state="idle"><i class="dot"></i><span id="pillText">未出勤</span></span>
+          <span class="chip" id="geoChip" data-geo="idle"><i class="dot"></i><span id="geoText">位置情報 待機中</span></span>
+        </div>
+        <p class="geo-detail" id="geoDetail" hidden></p>
+
+        <div class="readout">
+          <div class="readout-label" id="roLabel">本日の実働時間</div>
+          <div class="readout-value mono" id="roValue">0:00</div>
+          <div class="readout-sub" id="roSub">出勤ボタンを押すと打刻と同時に位置情報を記録します。</div>
+        </div>
+
+        <div class="site">
+          <div class="site-head">
+            <label class="site-label" for="place" id="siteLabel">今日の現場</label>
+            <span class="site-state" id="siteState">未入力</span>
+          </div>
+          <input type="text" id="place" placeholder="現場名を入力（例: 山田様邸）" maxlength="40" autocomplete="off">
+          <div class="site-recent" id="siteRecent"></div>
+          <p class="site-help" id="siteHelp">出勤前でも勤務中でも入力・変更できます。入力しなくても打刻はできます。</p>
+        </div>
+
+        <button class="key" id="key" data-kind="in">
+          <span class="key-label" id="keyLabel">出勤</span>
+          <span class="key-sub mono" id="keySub">--:--</span>
+        </button>
+        <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
+      </section>
+
+      <section class="card" id="todayCard" hidden>
+        <div class="card-head">
+          <h2 class="card-title">本日の打刻</h2>
+          <span class="card-note" id="todayDate"></span>
+        </div>
+        <div id="todayBody"></div>
+      </section>
+    </div>
+
+    <div class="col-right">
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">記録</h2>
+          <span class="card-note" id="histNote"></span>
+        </div>
+        <div id="exportBanner"></div>
+
+        <div class="editor" id="manualPanel" hidden style="margin-top:0">
+          <div class="editor-grid">
+            <label><span>日付</span><input type="date" id="mnDate"></label>
+            <label><span>出勤</span><input type="time" id="mnIn"></label>
+            <label><span>退勤</span><input type="time" id="mnOut"></label>
+            <label><span>休憩（分）</span><input type="number" id="mnBreak" min="0" step="5" value="90"></label>
+            <label><span>現場名</span><input type="text" id="mnPlace" maxlength="40" placeholder="任意"></label>
+          </div>
+          <div class="editor-actions">
+            <button class="btn btn-primary" id="mnSave">この内容で追加</button>
+            <button class="btn" id="mnClose">閉じる</button>
+          </div>
+          <p class="editor-note" id="mnNote">ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の現場は1件ずつ追加してください。位置情報は記録されず、CSVには「手入力」と残ります。</p>
+        </div>
+
+        <div class="export" id="exportPanel" hidden>
+          <div class="export-row">
+            <select id="csvMonth"></select>
+            <button class="btn btn-primary" id="csvSave" hidden>ファイルで保存</button>
+            <button class="btn" id="csvCopy">コピー</button>
+            <button class="btn" id="csvClose" style="margin-left:auto">閉じる</button>
+          </div>
+          <textarea id="csvText" readonly spellcheck="false"></textarea>
+          <p class="export-note" id="csvNote">このCSVを担当者に送ってください。「コピー」した内容はメールやチャットにそのまま貼り付けられます。</p>
+        </div>
+
+        <div id="history"></div>
+        <div class="foot">
+          <span class="foot-note" id="storeNote">&nbsp;</span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="manualBtn">押し忘れを手入力</button>
+            <button class="btn" id="exportBtn">CSVを書き出す</button>
+          </span>
+        </div>
+        <p class="foot-note install" id="installNote"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  if (window.__timecardBooted) return;
+  window.__timecardBooted = true;
+
+  var BREAK_DEFAULT = 90;
+  var LS_REC = "genba-timecard-v1";
+  var LS_ME = "genba-timecard-me-v1";
+  var LS_EXPORT = "genba-timecard-export-v1";
+  var WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+  var downloads = null;
+  var records = [];
+  var meName = "";
+  var lastExportAt = 0;
+  var openKey = null;
+  var exportOpen = false;
+  var manualOpen = false;
+  var busy = false;
+  var lastPunchAt = 0;
+  var pendingRender = false;
+  var placeTimer = null;
+  var geoDetail = "";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- time helpers ---------- */
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function dateKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function clockOf(ms) { var d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function fmtHM(ms) {
+    if (!(ms > 0)) return "0:00";
+    var m = Math.floor(ms / 60000);
+    return Math.floor(m / 60) + ":" + pad(m % 60);
+  }
+  function fmtHMS(ms) {
+    if (!(ms > 0)) ms = 0;
+    var s = Math.floor(ms / 1000);
+    return Math.floor(s / 3600) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60);
+  }
+  function decHours(ms) { return (Math.max(0, ms) / 3600000).toFixed(2); }
+  function parseKey(key) { var p = key.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function newId() { return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  /* ---------- data shaping ---------- */
+  function activeRecord() {
+    var list = records.slice().sort(function (a, b) { return a.inAt - b.inAt; });
+    for (var i = list.length - 1; i >= 0; i--) if (!list[i].outAt) return list[i];
+    return null;
+  }
+  function days() {
+    var map = {};
+    records.slice().sort(function (a, b) { return a.inAt - b.inAt; }).forEach(function (r) {
+      var d = map[r.date] || (map[r.date] = {
+        key: r.date, date: r.date, sessions: [], breakMin: BREAK_DEFAULT, holdMs: 0, open: false
+      });
+      d.sessions.push(r);
+      d.breakMin = typeof r.breakMin === "number" ? r.breakMin : BREAK_DEFAULT;
+      if (r.outAt) d.holdMs += r.outAt - r.inAt; else d.open = true;
+    });
+    return Object.keys(map).sort().reverse().map(function (d) {
+      var day = map[d];
+      day.workMs = Math.max(0, day.holdMs - day.breakMin * 60000);
+      return day;
+    });
+  }
+  function dayOf(dateStr) {
+    var all = days();
+    for (var i = 0; i < all.length; i++) if (all[i].date === dateStr) return all[i];
+    return null;
+  }
+  /* その日に回った現場名（重複なし・順番どおり） */
+  function placesOf(d) {
+    var seen = {}, out = [];
+    d.sessions.forEach(function (r) {
+      var p = (r.place || "").trim();
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out;
+  }
+  /* 最近使った現場名（新しい順・重複なし） */
+  function recentPlaces() {
+    var seen = {}, out = [];
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      var p = (r.place || "").trim();
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out.slice(0, 5);
+  }
+
+  /* ---------- storage ---------- */
+  function readLS(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      return v == null ? fallback : JSON.parse(v);
+    } catch (e) { return fallback; }
+  }
+  function writeLS(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+  function saveRecords() {
+    if (!writeLS(LS_REC, records)) {
+      $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
+    }
+  }
+  function createRecord(rec) {
+    var id = newId();
+    records.push(Object.assign({ id: id }, rec));
+    saveRecords();
+    return id;
+  }
+  function patchRecord(id, patch) {
+    records.forEach(function (r) { if (r.id === id) Object.assign(r, patch); });
+    saveRecords();
+  }
+  function deleteRecord(id) {
+    records = records.filter(function (r) { return r.id !== id; });
+    saveRecords();
+  }
+
+  /* ---------- geolocation ---------- */
+  function setGeo(state, text) {
+    $("geoChip").setAttribute("data-geo", state);
+    $("geoText").textContent = text;
+    var box = $("geoDetail");
+    box.textContent = geoDetail || "";
+    box.hidden = !geoDetail;
+  }
+
+  /* 埋め込み表示（iframe）では権限ポリシーで位置情報が丸ごと禁止される。
+     その場合は許可ダイアログすら出ないので、最初に判定して伝える。 */
+  function geoPolicyBlocked() {
+    try {
+      var fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && typeof fp.allowsFeature === "function") return !fp.allowsFeature("geolocation");
+    } catch (e) {}
+    return false;
+  }
+
+  function describeGeoError(err) {
+    if (!window.isSecureContext) {
+      return "このページは HTTPS ではないため、位置情報を使えません。https:// のURLで開いてください。";
+    }
+    if (!err) return "位置情報を取得できませんでした。もう一度お試しください。";
+    if (err.code === 1) {
+      if (/polic|disabled|permissions/i.test(err.message || "") && geoPolicyBlocked()) {
+        return "この画面（埋め込み表示）では位置情報が使えない設定になっています。通常のWebページとして開く必要があります。";
+      }
+      return "位置情報が「ブロック」になっています。アドレスバーの鍵アイコン →「権限」→ 位置情報を「許可」にして、開き直してください。";
+    }
+    if (err.code === 2) {
+      return "現在地を測定できませんでした。端末の位置情報（GPS）がオンか確認し、屋外や窓ぎわでお試しください。";
+    }
+    if (err.code === 3) {
+      return "測定に時間がかかりすぎました。屋外や窓ぎわで「現在地を記録」からやり直してください。";
+    }
+    return "位置情報を取得できませんでした。";
+  }
+
+  function tryGeo(opts) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (!done) { done = true; resolve({ err: { code: 3, message: "timeout" } }); }
+      }, opts.timeout + 2000);
+      var finish = function (v) { if (done) return; done = true; clearTimeout(timer); resolve(v); };
+      try {
+        navigator.geolocation.getCurrentPosition(function (p) {
+          finish({
+            loc: {
+              lat: +p.coords.latitude.toFixed(6),
+              lng: +p.coords.longitude.toFixed(6),
+              acc: Math.round(p.coords.accuracy || 0)
+            }
+          });
+        }, function (e) { finish({ err: e }); }, opts);
+      } catch (e) { finish({ err: { code: 1, message: String(e && e.message) } }); }
+    });
+  }
+
+  /* GPS優先で試し、掴めなければ基地局・Wi-Fi測位に切り替える（屋内・ビル影対策） */
+  function getLocation() {
+    geoDetail = "";
+    if (!navigator.geolocation) {
+      geoDetail = "このブラウザは位置情報に対応していません。";
+      return Promise.resolve(null);
+    }
+    if (geoPolicyBlocked()) {
+      geoDetail = "この画面（埋め込み表示）では位置情報が使えない設定になっています。通常のWebページとして開く必要があります。";
+      return Promise.resolve(null);
+    }
+    return tryGeo({ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }).then(function (r) {
+      if (r.loc) return r.loc;
+      /* 拒否・禁止は何度試しても同じなので即あきらめる */
+      if (r.err && r.err.code === 1) { geoDetail = describeGeoError(r.err); return null; }
+      return tryGeo({ enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }).then(function (r2) {
+        if (r2.loc) return r2.loc;
+        geoDetail = describeGeoError(r2.err);
+        return null;
+      });
+    });
+  }
+  function locHTML(loc, id, field) {
+    if (!loc) {
+      return '<span class="log-loc">位置情報なし<br>' +
+        '<button class="relocate" data-id="' + id + '" data-field="' + field + '">現在地を記録</button></span>';
+    }
+    var q = loc.lat + "," + loc.lng;
+    return '<span class="log-loc"><a href="https://www.google.com/maps?q=' + q +
+      '" target="_blank" rel="noopener noreferrer">' + q + '</a><br>誤差 約' + loc.acc + 'm</span>';
+  }
+
+  /* ---------- punch ---------- */
+  function punch() {
+    if (!meName) return;
+    /* 指が滑って二度押ししても1回しか打刻しない */
+    if (busy || Date.now() - lastPunchAt < 2000) return;
+    lastPunchAt = Date.now();
+    var act = activeRecord();
+    busy = true;
+    $("key").disabled = true;
+    setGeo("locating", "位置情報 取得中…");
+
+    var now = Date.now();
+    var target;
+    if (act) {
+      patchRecord(act.id, { outAt: now, place: $("place").value.trim() || act.place });
+      target = { id: act.id, field: "outLoc" };
+      /* 次の現場を入力できるように空にする */
+      $("place").value = "";
+    } else {
+      target = {
+        id: createRecord({
+          date: dateKey(new Date(now)),
+          empName: meName,
+          inAt: now,
+          outAt: null,
+          breakMin: BREAK_DEFAULT,
+          place: $("place").value.trim(),
+          inLoc: null,
+          outLoc: null
+        }),
+        field: "inLoc"
+      };
+    }
+    render();
+
+    getLocation().then(function (loc) {
+      if (!loc) { setGeo("fail", "位置情報 記録できず"); return; }
+      setGeo("ok", "位置情報 記録しました");
+      var patch = {};
+      patch[target.field] = loc;
+      patchRecord(target.id, patch);
+    }).then(function () {
+      busy = false;
+      $("key").disabled = false;
+      render();
+    });
+  }
+
+  /* ---------- 名前 ---------- */
+  function renderGate() {
+    var showGate = !meName;
+    $("gate").hidden = !showGate;
+    $("punchCard").hidden = showGate;
+    $("todayCard").hidden = showGate;
+    $("meBtn").hidden = showGate;
+    if (meName) $("meBtn").textContent = meName + " ▾";
+  }
+  function saveName() {
+    var name = $("newName").value.trim();
+    if (!name) { $("newName").focus(); return; }
+    meName = name;
+    writeLS(LS_ME, meName);
+    /* 過去の記録の名前も揃えておく（CSVの社員名列のため） */
+    records.forEach(function (r) { r.empName = meName; });
+    saveRecords();
+    lastPunchAt = 0;
+    $("newName").value = "";
+    render();
+  }
+
+  /* ---------- render ---------- */
+  function tick() {
+    var d = new Date();
+    $("nowTime").innerHTML = pad(d.getHours()) + ":" + pad(d.getMinutes()) + '<span class="sec">:' + pad(d.getSeconds()) + "</span>";
+    $("nowDate").textContent = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日（" + WD[d.getDay()] + "）";
+    $("keySub").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    var act = activeRecord();
+    if (act) {
+      var hold = Date.now() - act.inAt;
+      var today = dayOf(act.date);
+      var extra = today ? today.holdMs : 0;
+      var work = Math.max(0, hold + extra - (act.breakMin || BREAK_DEFAULT) * 60000);
+      $("roValue").innerHTML = fmtHMS(hold).replace(/:(\d\d)$/, '<span class="sec">:$1</span>');
+      $("roSub").textContent = "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
+    }
+  }
+
+  function render() {
+    if (openKey) { pendingRender = true; return; }
+    pendingRender = false;
+    renderGate();
+    if (meName) { renderPunch(); renderSite(); renderToday(); }
+    renderHistory();
+    renderExport();
+    renderManual();
+    tick();
+  }
+
+  function renderPunch() {
+    var act = activeRecord();
+    var today = dayOf(dateKey(new Date()));
+    var pill = $("pill");
+
+    if (act) {
+      pill.setAttribute("data-state", "working");
+      $("pillText").textContent = "勤務中";
+      $("keyLabel").textContent = "退勤";
+      $("key").setAttribute("data-kind", "out");
+      $("roLabel").textContent = "経過時間";
+      $("hint").textContent = "退勤ボタンで打刻し、休憩 " + fmtHM((act.breakMin || BREAK_DEFAULT) * 60000) + " を引いて実働を計算します。";
+    } else {
+      var done = today && today.sessions.length;
+      pill.setAttribute("data-state", done ? "done" : "idle");
+      $("pillText").textContent = done ? "退勤済" : "未出勤";
+      $("keyLabel").textContent = done ? "再出勤" : "出勤";
+      $("key").setAttribute("data-kind", "in");
+      $("roLabel").textContent = "本日の実働時間";
+      $("roValue").textContent = today ? fmtHM(today.workMs) : "0:00";
+      $("roSub").textContent = today
+        ? "拘束 " + fmtHM(today.holdMs) + " − 休憩 " + fmtHM(today.breakMin * 60000) + " ＝ 実働 " + fmtHM(today.workMs)
+        : "出勤ボタンを押すと打刻と同時に位置情報を記録します。";
+      $("hint").textContent = done
+        ? "同じ日にもう一度打刻すると、拘束時間に合算されます。"
+        : "休憩 1:30 を自動で差し引いて実働時間を計算します。";
+    }
+  }
+
+  function renderSite() {
+    var act = activeRecord();
+    var today = dayOf(dateKey(new Date()));
+    var input = $("place");
+    /* 入力中は横取りしない */
+    if (document.activeElement !== input && act) input.value = act.place || "";
+    var val = input.value.trim();
+    var done = today && !act ? today.sessions.length : 0;
+
+    $("siteLabel").textContent = act ? "いまいる現場" : done ? "次に行く現場" : "今日の現場";
+    $("siteState").textContent = act
+      ? (val ? "この打刻に記録中" : "未入力（勤務中でも入力できます）")
+      : (val ? "次の出勤でこの名前を記録します" : "未入力");
+    $("siteHelp").textContent = act
+      ? "勤務中でも変更できます。打刻し直す必要はありません。"
+      : done
+        ? "1日に何件も回るときは、現場ごとに「再出勤」→「退勤」を押してください。前の現場の名前は下の「本日の打刻」から直せます。"
+        : "出勤前でも勤務中でも入力できます。入力しなくても打刻はできます。";
+
+    var recents = recentPlaces().filter(function (p) { return p !== val; });
+    $("siteRecent").innerHTML = recents.length
+      ? '<span class="rc-label">よく使う現場</span>' + recents.map(function (p) {
+          return '<button class="rc" data-place="' + esc(p) + '">' + esc(p) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call($("siteRecent").querySelectorAll(".rc"), function (b) {
+      b.addEventListener("click", function () {
+        input.value = b.getAttribute("data-place");
+        commitPlace();
+      });
+    });
+  }
+
+  /* 勤務中はいつでも現場名を書き換えられる（退勤済みの分は「本日の打刻」から直す） */
+  function commitPlace() {
+    var act = activeRecord();
+    if (act) {
+      patchRecord(act.id, { place: $("place").value.trim() });
+      renderToday();
+      renderHistory();
+    }
+    renderSite();
+  }
+
+  function renderToday() {
+    var now = new Date();
+    var today = dayOf(dateKey(now));
+    $("todayDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
+    var tb = $("todayBody");
+
+    if (!today) {
+      tb.innerHTML = '<p class="empty">まだ本日の打刻はありません。</p>';
+      return;
+    }
+    var many = today.sessions.length > 1;
+    var blocks = today.sessions.map(function (r, i) {
+      var rows = '<div class="log-row"><span class="log-tag" data-kind="in">出勤</span>' +
+        '<span class="log-time mono">' + clockOf(r.inAt) + "</span>" + locHTML(r.inLoc, r.id, "inLoc") + "</div>";
+      if (r.outAt) {
+        rows += '<div class="log-row"><span class="log-tag" data-kind="out">退勤</span>' +
+          '<span class="log-time mono">' + clockOf(r.outAt) + "</span>" + locHTML(r.outLoc, r.id, "outLoc") + "</div>";
+      }
+      var dur = r.outAt ? fmtHM(r.outAt - r.inAt) : fmtHM(Date.now() - r.inAt) + "（勤務中）";
+      return '<div class="sess">' +
+        '<div class="sess-head">' +
+        (many ? '<span class="sess-no">' + (i + 1) + "件目</span>" : '<span class="sess-no">現場</span>') +
+        '<span class="sess-dur">拘束 <span class="mono">' + dur + "</span></span></div>" +
+        '<input class="sess-place" type="text" maxlength="40" data-id="' + r.id +
+        '" value="' + esc(r.place || "") + '" placeholder="現場名を入力">' +
+        '<div class="log">' + rows + "</div></div>";
+    }).join("");
+
+    tb.innerHTML = blocks +
+      '<div class="calc">' +
+      '<div class="calc-line"><span>拘束時間' + (many ? "（" + today.sessions.length + "件合計）" : "") +
+      '</span><strong class="mono">' + fmtHM(today.holdMs) + (today.open ? "（勤務中）" : "") + "</strong></div>" +
+      '<div class="calc-line"><span>休憩</span><strong class="mono">− ' + fmtHM(today.breakMin * 60000) + "</strong></div>" +
+      '<div class="calc-total"><span>実働</span><strong class="mono">' + fmtHM(today.workMs) + "</strong></div>" +
+      "</div>";
+
+    Array.prototype.forEach.call(tb.querySelectorAll(".sess-place"), function (inp) {
+      inp.addEventListener("change", function () {
+        patchRecord(inp.getAttribute("data-id"), { place: inp.value.trim() });
+        renderHistory();
+        renderSite();
+      });
+    });
+
+    Array.prototype.forEach.call(tb.querySelectorAll(".relocate"), function (b) {
+      b.addEventListener("click", function () {
+        b.textContent = "取得中…";
+        b.disabled = true;
+        setGeo("locating", "位置情報 取得中…");
+        getLocation().then(function (loc) {
+          if (!loc) {
+            setGeo("fail", "位置情報 記録できず");
+            b.textContent = "もう一度試す";
+            b.disabled = false;
+            return;
+          }
+          setGeo("ok", "位置情報 記録しました");
+          var patch = {};
+          patch[b.getAttribute("data-field")] = loc;
+          patchRecord(b.getAttribute("data-id"), patch);
+          render();
+        });
+      });
+    });
+  }
+
+  function dayRowHTML(d) {
+    var dt = parseKey(d.date);
+    var wd = WD[dt.getDay()];
+    var cls = dt.getDay() === 0 ? "sun" : dt.getDay() === 6 ? "sat" : "";
+    var first = d.sessions[0];
+    var last = d.sessions[d.sessions.length - 1];
+    var span = clockOf(first.inAt) + " – " + (last.outAt ? clockOf(last.outAt) : "勤務中");
+    var place = placesOf(d).join("・");
+    if (d.sessions.length > 1) place = d.sessions.length + "件" + (place ? " ・ " + place : "");
+    if (d.sessions.some(function (r) { return r.manual; })) {
+      place = (place ? place + " ・ " : "") + "手入力";
+    }
+    return '<button class="day" data-key="' + esc(d.key) + '">' +
+      '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
+      '<span class="day-span"><span class="mono">' + span + "</span>" +
+      (place ? '<span class="day-place">' + esc(place) + "</span>" : "") + "</span>" +
+      '<span class="day-work mono' + (d.open ? " open" : "") + '">' + fmtHM(d.workMs) + "<small>h</small></span>" +
+      "</button>" + (openKey === d.key ? editorHTML(d) : "");
+  }
+
+  function renderHistory() {
+    var all = days();
+    var host = $("history");
+    if (!all.length) {
+      host.innerHTML = '<p class="empty">' + (meName ? "打刻の記録がここに並びます。" : "名前を登録すると記録が始まります。") + "</p>";
+      $("histNote").textContent = "";
+      return;
+    }
+    var months = [], index = {};
+    all.forEach(function (d) {
+      var m = d.date.slice(0, 7);
+      if (!index[m]) { index[m] = { key: m, days: [], total: 0 }; months.push(index[m]); }
+      index[m].days.push(d);
+      index[m].total += d.workMs;
+    });
+    host.innerHTML = months.map(function (m) {
+      var mp = m.key.split("-");
+      return '<div class="month"><div class="month-head"><span class="month-name">' +
+        mp[0] + "年" + (+mp[1]) + '月</span><span class="month-sum">' + m.days.length +
+        '日 ／ 実働 <b class="mono">' + fmtHM(m.total) + "</b></span></div>" +
+        m.days.map(dayRowHTML).join("") + "</div>";
+    }).join("");
+    $("histNote").textContent = all.length + "日分";
+
+    Array.prototype.forEach.call(host.querySelectorAll(".day"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-key");
+        openKey = openKey === k ? null : k;
+        renderHistory();
+      });
+    });
+    var ed = host.querySelector(".editor");
+    if (ed) bindEditor(ed);
+  }
+
+  function editorHTML(d) {
+    var many = d.sessions.length > 1;
+    return '<div class="editor" data-key="' + esc(d.key) + '">' +
+      '<label class="ed-break"><span>休憩（分）／1日あたり</span>' +
+      '<input type="number" id="edBreak" min="0" step="5" value="' + d.breakMin + '"></label>' +
+      d.sessions.map(function (r, i) {
+        return '<div class="ed-sess" data-id="' + r.id + '">' +
+          (many ? '<div class="ed-sess-no">' + (i + 1) + "件目</div>" : "") +
+          '<div class="editor-grid">' +
+          '<label><span>出勤</span><input type="time" class="ed-in" value="' + clockOf(r.inAt) + '"></label>' +
+          '<label><span>退勤</span><input type="time" class="ed-out" value="' + (r.outAt ? clockOf(r.outAt) : "") + '"></label>' +
+          '<label><span>現場名</span><input type="text" class="ed-place" maxlength="40" value="' + esc(r.place || "") + '"></label>' +
+          "</div>" +
+          (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
+          "</div>";
+      }).join("") +
+      '<div class="editor-actions">' +
+      '<button class="btn btn-primary" id="edSave">保存</button>' +
+      '<button class="btn" id="edCancel">閉じる</button>' +
+      '<button class="btn btn-danger" id="edDelete">この日をすべて削除</button>' +
+      "</div>" +
+      '<p class="editor-note">' + (many
+        ? "この日は " + d.sessions.length + " 件の現場を回っています。現場ごとに時刻と名前を直せます。休憩は1日分としてまとめて引かれます。"
+        : "退勤を押し忘れた日は、ここに退勤時刻を入れれば計算されます。") + "</p>" +
+      "</div>";
+  }
+
+  function bindEditor(ed) {
+    var key = ed.getAttribute("data-key");
+    var close = function () { openKey = null; renderHistory(); if (pendingRender) render(); };
+    ed.querySelector("#edCancel").addEventListener("click", close);
+
+    ed.querySelector("#edDelete").addEventListener("click", function () {
+      var d = dayOf(key);
+      if (!d) return close();
+      d.sessions.forEach(function (r) { deleteRecord(r.id); });
+      openKey = null; render();
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll(".ed-del"), function (b) {
+      b.addEventListener("click", function () {
+        deleteRecord(b.getAttribute("data-id"));
+        openKey = null; render();
+      });
+    });
+
+    ed.querySelector("#edSave").addEventListener("click", function () {
+      var d = dayOf(key);
+      if (!d) return close();
+      var base = parseKey(d.date);
+      var brk = Math.max(0, parseInt(ed.querySelector("#edBreak").value, 10) || 0);
+      var at = function (v) {
+        var p = v.split(":");
+        return new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime();
+      };
+
+      Array.prototype.forEach.call(ed.querySelectorAll(".ed-sess"), function (block) {
+        var id = block.getAttribute("data-id");
+        var rec = records.filter(function (r) { return r.id === id; })[0];
+        if (!rec) return;
+        var inVal = block.querySelector(".ed-in").value;
+        var outVal = block.querySelector(".ed-out").value;
+        var patch = { breakMin: brk, place: block.querySelector(".ed-place").value.trim() };
+        var inAt = inVal ? at(inVal) : rec.inAt;
+        patch.inAt = inAt;
+        if (outVal) {
+          var outAt = at(outVal);
+          if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+          patch.outAt = outAt;
+        }
+        patchRecord(id, patch);
+      });
+
+      openKey = null; render();
+    });
+  }
+
+  /* ---------- 押し忘れの手入力 ---------- */
+  function openManual() {
+    manualOpen = true;
+    $("mnDate").value = dateKey(new Date());
+    $("mnIn").value = "";
+    $("mnOut").value = "";
+    $("mnBreak").value = BREAK_DEFAULT;
+    $("mnPlace").value = "";
+    $("mnNote").textContent = "ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の現場は1件ずつ追加してください。位置情報は記録されず、CSVには「手入力」と残ります。";
+    renderManual();
+    $("mnIn").focus();
+  }
+  function renderManual() { $("manualPanel").hidden = !manualOpen; }
+
+  function saveManual() {
+    var dv = $("mnDate").value;
+    var inVal = $("mnIn").value;
+    var outVal = $("mnOut").value;
+    if (!dv || !inVal) {
+      $("mnNote").textContent = "日付と出勤時刻を入力してください。";
+      return;
+    }
+    var base = parseKey(dv);
+    var ip = inVal.split(":");
+    var inAt = new Date(base.getFullYear(), base.getMonth(), base.getDate(), +ip[0], +ip[1]).getTime();
+    var outAt = null;
+    if (outVal) {
+      var op = outVal.split(":");
+      outAt = new Date(base.getFullYear(), base.getMonth(), base.getDate(), +op[0], +op[1]).getTime();
+      if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+    }
+    createRecord({
+      date: dv,
+      empName: meName,
+      inAt: inAt,
+      outAt: outAt,
+      breakMin: Math.max(0, parseInt($("mnBreak").value, 10) || 0),
+      place: $("mnPlace").value.trim(),
+      inLoc: null,
+      outLoc: null,
+      manual: true
+    });
+    manualOpen = false;
+    render();
+  }
+
+  /* ---------- CSV ---------- */
+  function csvCell(v) {
+    var s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function monthKeys() {
+    var seen = {}, out = [];
+    days().forEach(function (d) {
+      var m = d.date.slice(0, 7);
+      if (!seen[m]) { seen[m] = 1; out.push(m); }
+    });
+    return out;
+  }
+  function buildCsv(month) {
+    var list = days().filter(function (d) { return !month || d.date.slice(0, 7) === month; });
+    var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
+      "現場数", "現場名", "現場ごとの内訳", "出勤地点", "退勤地点", "備考"];
+    var lines = [head.join(",")];
+    var total = 0;
+    list.slice().reverse().forEach(function (d) {
+      var first = d.sessions[0];
+      var last = d.sessions[d.sessions.length - 1];
+      var dt = parseKey(d.date);
+      total += d.workMs;
+      lines.push([
+        meName, d.date, WD[dt.getDay()],
+        clockOf(first.inAt),
+        last.outAt ? clockOf(last.outAt) : "",
+        fmtHM(d.holdMs), d.breakMin, fmtHM(d.workMs), decHours(d.workMs),
+        d.sessions.length,
+        placesOf(d).join("／"),
+        d.sessions.map(function (r) {
+          return clockOf(r.inAt) + "-" + (r.outAt ? clockOf(r.outAt) : "未退勤") +
+            " " + (r.place || "現場名なし") +
+            (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
+        }).join(" ／ "),
+        first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
+        last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
+        d.sessions.some(function (r) { return r.manual; }) ? "手入力" : ""
+      ].map(csvCell).join(","));
+    });
+    lines.push(["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "", "", "", ""].map(csvCell).join(","));
+    return "﻿" + lines.join("\r\n") + "\r\n";
+  }
+  function currentMonthChoice() {
+    var sel = $("csvMonth");
+    return sel.value === "all" ? "" : sel.value;
+  }
+  function refreshCsvText() {
+    $("csvText").value = buildCsv(currentMonthChoice());
+  }
+  function markExported() {
+    lastExportAt = Date.now();
+    writeLS(LS_EXPORT, lastExportAt);
+    renderExport();
+  }
+
+  /* 未書き出しの完了日数 */
+  function unexportedDays() {
+    return days().filter(function (d) {
+      if (d.open) return false;
+      var last = d.sessions[d.sessions.length - 1];
+      return last.outAt > lastExportAt;
+    }).length;
+  }
+
+  function renderExport() {
+    $("exportPanel").hidden = !exportOpen;
+    var n = unexportedDays();
+    $("storeNote").textContent = lastExportAt
+      ? "最後の書き出し " + new Date(lastExportAt).toLocaleDateString("ja-JP") +
+        (n ? "／未書き出し " + n + "日分" : "／すべて書き出し済み")
+      : "記録はこの端末の中だけに保存されます。定期的にCSVを書き出してください。";
+
+    var banner = $("exportBanner");
+    if (n >= 7 && !exportOpen) {
+      banner.innerHTML = '<div class="banner"><span>書き出していない記録が ' + n +
+        '日分あります。端末を替えたり閲覧データを消すと記録は失われます。</span>' +
+        '<button class="btn" id="bannerExport">いま書き出す</button></div>';
+      $("bannerExport").addEventListener("click", openExport);
+    } else {
+      banner.innerHTML = "";
+    }
+  }
+
+  function openExport() {
+    if (!days().length) return;
+    exportOpen = true;
+    var sel = $("csvMonth");
+    var months = monthKeys();
+    var thisMonth = dateKey(new Date()).slice(0, 7);
+    sel.innerHTML = months.map(function (m) {
+      var mp = m.split("-");
+      return '<option value="' + m + '">' + mp[0] + "年" + (+mp[1]) + "月</option>";
+    }).join("") + '<option value="all">全期間</option>';
+    sel.value = months.indexOf(thisMonth) >= 0 ? thisMonth : (months[0] || "all");
+    refreshCsvText();
+    renderExport();
+    $("exportPanel").scrollIntoView({ block: "nearest" });
+  }
+
+  /* ---------- boot ---------- */
+  records = readLS(LS_REC, []);
+  meName = readLS(LS_ME, "") || "";
+  lastExportAt = readLS(LS_EXPORT, 0) || 0;
+  /* 以前の共有版で保存された記録があれば引き継ぐ */
+  records.forEach(function (r) { if (!r.empName && meName) r.empName = meName; });
+  /* 位置情報が使えない環境かどうかを、打刻を待たずに知らせる */
+  if (!navigator.geolocation) {
+    geoDetail = "このブラウザは位置情報に対応していません。";
+  } else if (geoPolicyBlocked()) {
+    geoDetail = "この画面（埋め込み表示）では位置情報が使えない設定になっています。打刻と時間の計算は使えますが、位置は記録されません。通常のWebページとして開くと記録できます。";
+  } else if (!window.isSecureContext) {
+    geoDetail = "このページは HTTPS ではないため、位置情報を使えません。https:// のURLで開いてください。";
+  }
+  render();
+  if (geoDetail) setGeo("fail", "位置情報 使えません");
+  setInterval(tick, 1000);
+
+  $("key").addEventListener("click", punch);
+  $("addName").addEventListener("click", saveName);
+  $("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveName(); });
+  $("meBtn").addEventListener("click", function () {
+    $("newName").value = meName;
+    meName = "";
+    render();
+    $("newName").focus();
+  });
+
+  $("place").addEventListener("input", function () {
+    clearTimeout(placeTimer);
+    placeTimer = setTimeout(commitPlace, 500);
+  });
+  $("place").addEventListener("blur", commitPlace);
+
+  $("manualBtn").addEventListener("click", function () {
+    if (manualOpen) { manualOpen = false; renderManual(); } else { openManual(); }
+  });
+  $("mnClose").addEventListener("click", function () { manualOpen = false; renderManual(); });
+  $("mnSave").addEventListener("click", saveManual);
+
+  $("exportBtn").addEventListener("click", openExport);
+  $("csvClose").addEventListener("click", function () { exportOpen = false; renderExport(); });
+  $("csvMonth").addEventListener("change", refreshCsvText);
+
+  $("csvCopy").addEventListener("click", function () {
+    var ta = $("csvText");
+    var done = function () {
+      $("csvCopy").textContent = "コピーしました";
+      markExported();
+      setTimeout(function () { $("csvCopy").textContent = "コピー"; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(done)["catch"](function () {
+        ta.focus(); ta.select();
+        $("csvNote").textContent = "自動コピーできませんでした。選択された内容を手動でコピーしてください。";
+      });
+    } else {
+      ta.focus(); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {
+        $("csvNote").textContent = "選択された内容を手動でコピーしてください。";
+      }
+    }
+  });
+
+  /* 通常のWebページに置いた場合は、ブラウザのダウンロード機能で保存する */
+  function blobSave(filename, text) {
+    try {
+      var blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      markExported();
+    } catch (e) {
+      $("csvNote").textContent = "ファイル保存ができませんでした。「コピー」をお使いください。";
+    }
+  }
+
+  $("csvSave").addEventListener("click", function () {
+    var m = currentMonthChoice();
+    var name = (meName || "timecard").replace(/[\\\/:*?"<>|\s]+/g, "_");
+    var filename = "timecard-" + (m ? m.replace("-", "") : "all") + "-" + name + ".csv";
+    var csv = buildCsv(m);
+    if (!downloads) return blobSave(filename, csv);
+    downloads.save({ filename: filename, data: csv }).then(markExported)["catch"](function (e) {
+      if (e && e.code === "declined") return;
+      $("csvNote").textContent = "ファイル保存ができませんでした。「コピー」をお使いください。";
+    });
+  });
+
+  var ua = navigator.userAgent;
+  var isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  $("installNote").textContent = isIOS
+    ? "iPhone / iPad：共有ボタン →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
+    : /Android/.test(ua)
+      ? "Android：Chrome のメニュー →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
+      : "各社員にこのページのリンクを渡し、それぞれの端末で名前を登録してもらってください。記録は端末ごとに保存され、CSVで集約します。";
+
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(function (d) {
+      if (d) { downloads = d; $("csvSave").hidden = false; }
+    })["catch"](function () {});
+  } else {
+    /* 自前のWebページ（GitHub Pages など）では常に保存できる */
+    $("csvSave").hidden = false;
+  }
+})();
+</script>
