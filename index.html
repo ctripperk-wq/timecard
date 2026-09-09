@@ -434,6 +434,15 @@
   }
   .foot-note { max-width: 46ch; line-height: 1.5; }
   .install { max-width: none; margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .gotomerge { max-width: none; margin: 10px 0 0; }
+  .gotomerge a {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; text-decoration: none;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 8px 14px; border-radius: 9px;
+  }
+  .gotomerge a::before { content: "▸"; }
+  .gotomerge a:hover { background: var(--accent); color: var(--on-accent); }
 </style>
 
 <div class="wrap">
@@ -552,6 +561,9 @@
           </span>
         </div>
         <p class="foot-note install" id="installNote"></p>
+        <p class="foot-note gotomerge" id="mergeLink" hidden>
+          <a href="./shukei.html">届いたCSVをまとめて集計する（担当者向け）</a>
+        </p>
       </section>
     </div>
   </div>
@@ -1398,8 +1410,9 @@
       if (d) { downloads = d; $("csvSave").hidden = false; }
     })["catch"](function () {});
   } else {
-    /* 自前のWebページ（GitHub Pages など）では常に保存できる */
+    /* 自前のWebページ（GitHub Pages など）では、保存も集計ページへの移動もできる */
     $("csvSave").hidden = false;
+    $("mergeLink").hidden = false;
   }
 })();
 </script>
