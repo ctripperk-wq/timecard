@@ -357,6 +357,56 @@
     border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
     font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
   }
+  /* ---------- アルコールチェック（法定記録） ---------- */
+  .alc { margin-bottom: 14px; }
+  .alc-row {
+    border: 1px solid var(--line); border-radius: 11px;
+    padding: 11px 12px; margin-bottom: 8px; background: var(--surface);
+  }
+  .alc-row[data-done="1"] { background: var(--accent-soft); border-color: transparent; }
+  .alc-row[data-alert="1"] { border-color: var(--out-line); background: var(--out-soft); }
+  .alc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .alc-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    background: var(--surface-2); color: var(--ink-2); border-radius: 6px; padding: 3px 9px;
+  }
+  .alc-row[data-done="1"] .alc-tag { background: var(--accent); color: var(--on-accent); }
+  .alc-row[data-alert="1"] .alc-tag { background: var(--out); color: var(--on-out); }
+  .alc-state { font-size: 12.5px; color: var(--ink-2); text-align: right; }
+  .alc-state b { color: var(--ink); font-weight: 500; }
+  .alc-ok {
+    width: 100%; border: 0; cursor: pointer; border-radius: 10px; padding: 12px 14px;
+    background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 700;
+  }
+  .alc-ok:hover { filter: brightness(1.06); }
+  .alc-sub {
+    display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .alc-sub button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-size: 12px; color: var(--accent); text-decoration: underline;
+  }
+  .alc-sub button.warn { color: var(--out); }
+  .alc-detail { font-size: 11.5px; color: var(--ink-2); line-height: 1.6; }
+  .alc-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+  .alc-form label { display: block; margin-bottom: 9px; }
+  .alc-form label > span {
+    display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .alc-form select, .alc-form input {
+    width: 100%; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .alc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+  @keyframes flashcard {
+    0%, 100% { box-shadow: var(--shadow-card); }
+    30%, 70% { box-shadow: 0 0 0 3px var(--out); }
+  }
+  .flash { animation: flashcard 1.6s ease-in-out; }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+
   .gps {
     background: var(--surface-2); border: 1px solid var(--line);
     border-radius: 12px; padding: 13px 14px;
@@ -558,15 +608,23 @@
         </div>
 
         <div class="veh">
-          <label class="veh-label" for="vehicle">きょう使う車両</label>
-          <input type="text" id="vehicle" maxlength="30" placeholder="例: ハイエース / 品川 500 あ 12-34" autocomplete="off">
+          <label class="veh-label" for="vehicle">きょう使う車両（登録番号）</label>
+          <input type="text" id="vehicle" maxlength="30" placeholder="例: 品川 500 あ 12-34" autocomplete="off">
           <div class="veh-recent" id="vehRecent"></div>
         </div>
+
+        <label class="field">
+          <span>確認者（安全運転管理者）</span>
+          <input type="text" id="checker" maxlength="20" placeholder="例: 山田 一郎" autocomplete="off">
+        </label>
 
         <div class="odo">
           <label><span>出発メーター km</span><input type="number" id="odoStart" min="0" step="1" inputmode="numeric" placeholder="例: 45210"></label>
           <label><span>帰着メーター km</span><input type="number" id="odoEnd" min="0" step="1" inputmode="numeric" placeholder="例: 45268"></label>
         </div>
+        <p class="gps-note" id="odoNote" hidden></p>
+
+        <div class="alc" id="alcBox"></div>
 
         <div class="gps" id="gpsBox"></div>
       </section>
@@ -586,6 +644,7 @@
           <h2 class="card-title">記録</h2>
           <span class="card-note" id="histNote"></span>
         </div>
+        <div id="missingBanner"></div>
         <div id="exportBanner"></div>
 
         <div class="editor" id="manualPanel" hidden style="margin-top:0">
@@ -642,11 +701,13 @@
   var LS_ME = "genba-timecard-me-v1";
   var LS_EXPORT = "genba-timecard-export-v1";
   var LS_TRIP = "genba-timecard-trips-v1";
+  var LS_MGR = "genba-timecard-manager-v1";
   var WD = ["日", "月", "火", "水", "木", "金", "土"];
 
   var downloads = null;
   var records = [];
   var trips = {};
+  var manager = "";
   var meName = "";
   var lastExportAt = 0;
   var openKey = null;
@@ -897,7 +958,21 @@
       busy = false;
       $("key").disabled = false;
       render();
+      promptAlc(target.field === "outLoc");
     });
+  }
+
+  /* 打刻の直後に、その時点で必要なアルコールチェックが未記録なら知らせる */
+  function promptAlc(wasOut) {
+    var today = dateKey(new Date());
+    if (alcOf(today, wasOut ? "post" : "pre")) return;
+    var card = $("tripCard");
+    if (card.hidden) return;
+    try { card.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { card.scrollIntoView(); }
+    card.classList.remove("flash");
+    void card.offsetWidth;
+    card.classList.add("flash");
+    setTimeout(function () { card.classList.remove("flash"); }, 1800);
   }
 
   /* ---------- 名前 ---------- */
@@ -1116,7 +1191,38 @@
       "</button>" + (openKey === d.key ? editorHTML(d) : "");
   }
 
+  /* 法定記録として欠けている項目を洗い出す */
+  function missingDays() {
+    var today = dateKey(new Date());
+    return days().filter(function (d) { return !d.open; }).map(function (d) {
+      var t = tripOf(d.date);
+      var lack = [];
+      if (!t.vehicle) lack.push("車両");
+      if (odoDistance(d.date) == null) lack.push("メーター");
+      if (!alcOf(d.date, "pre")) lack.push("乗務前チェック");
+      if (!alcOf(d.date, "post")) lack.push("乗務後チェック");
+      return lack.length ? { date: d.date, lack: lack, today: d.date === today } : null;
+    }).filter(Boolean);
+  }
+
+  function renderMissing() {
+    var host = $("missingBanner");
+    var miss = missingDays();
+    if (!miss.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<div class="banner" style="display:block">' +
+      "<b>運行記録に未記入があります（" + miss.length + "日分）</b>" +
+      '<ul style="margin:6px 0 0;padding-left:1.2em">' +
+      miss.slice(0, 5).map(function (m) {
+        return "<li>" + m.date.slice(5).replace("-", "/") + (m.today ? "（本日）" : "") +
+          " … " + m.lack.join("・") + "</li>";
+      }).join("") +
+      (miss.length > 5 ? "<li>ほか " + (miss.length - 5) + "日分</li>" : "") +
+      "</ul>" +
+      '<p style="margin:8px 0 0;font-size:11.5px">日付の行をタップすると、その日の運行記録を直せます。</p></div>';
+  }
+
   function renderHistory() {
+    renderMissing();
     var all = days();
     var host = $("history");
     if (!all.length) {
@@ -1151,6 +1257,24 @@
     if (ed) bindEditor(ed);
   }
 
+  /* 履歴の編集画面で、あとからアルコールチェックを記録・修正する */
+  function alcEditHTML(date, k) {
+    var a = alcOf(date, k) || {};
+    var sel = function (cls, opts, cur) {
+      return '<select class="' + cls + '">' + opts.map(function (o) {
+        return '<option value="' + o[0] + '"' + (String(cur) === o[0] ? " selected" : "") + ">" + o[1] + "</option>";
+      }).join("") + "</select>";
+    };
+    return '<div class="ed-sess-no" style="margin-top:10px">' + ALC_KEYS[k] + "のアルコールチェック</div>" +
+      '<div class="editor-grid" data-alck="' + k + '">' +
+      '<label><span>時刻</span><input type="time" class="ea-time" value="' + (a.at ? clockOf(a.at) : "") + '"></label>' +
+      '<label><span>酒気帯び</span>' + sel("ea-ok", [["", "未記録"], ["1", "なし"], ["0", "あり"]], a.at ? (a.ok ? "1" : "0") : "") + "</label>" +
+      '<label><span>検知器</span>' + sel("ea-det", [["1", "使用"], ["0", "不使用"]], a.detector === false ? "0" : "1") + "</label>" +
+      '<label><span>確認方法</span>' + sel("ea-face", [["1", "対面"], ["0", "対面以外"]], a.face === false ? "0" : "1") + "</label>" +
+      '<label><span>数値 mg/L</span><input type="text" class="ea-val" inputmode="decimal" maxlength="6" value="' + esc(a.value || "") + '"></label>' +
+      "</div>";
+  }
+
   function editorHTML(d) {
     var many = d.sessions.length > 1;
     return '<div class="editor" data-key="' + esc(d.key) + '">' +
@@ -1175,7 +1299,12 @@
       (tripOf(d.date).odoStart == null ? "" : tripOf(d.date).odoStart) + '"></label>' +
       '<label><span>帰着メーター</span><input type="number" id="edOdoEnd" min="0" step="1" value="' +
       (tripOf(d.date).odoEnd == null ? "" : tripOf(d.date).odoEnd) + '"></label>' +
-      "</div></div>" +
+      "</div>" +
+      Object.keys(ALC_KEYS).map(function (k) { return alcEditHTML(d.date, k); }).join("") +
+      '<label style="display:block;margin-top:10px"><span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">指示事項</span>' +
+      '<input type="text" id="edAlcNote" maxlength="60" value="' +
+      esc((alcOf(d.date, "pre") || {}).note || (alcOf(d.date, "post") || {}).note || "") + '"></label>' +
+      "</div>" +
       '<div class="editor-actions">' +
       '<button class="btn btn-primary" id="edSave">保存</button>' +
       '<button class="btn" id="edCancel">閉じる</button>' +
@@ -1241,6 +1370,26 @@
         vehicle: ed.querySelector("#edVehicle").value.trim(),
         odoStart: numOf("#edOdoStart"),
         odoEnd: numOf("#edOdoEnd")
+      });
+
+      var note = ed.querySelector("#edAlcNote").value.trim();
+      var base = parseKey(d.date);
+      Array.prototype.forEach.call(ed.querySelectorAll("[data-alck]"), function (g) {
+        var k = g.getAttribute("data-alck");
+        var okv = g.querySelector(".ea-ok").value;
+        var tv = g.querySelector(".ea-time").value;
+        if (okv === "" || !tv) { clearAlc(d.date, k); return; }
+        var p = tv.split(":");
+        recordAlc(d.date, k, {
+          at: new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime(),
+          ok: okv === "1",
+          detector: g.querySelector(".ea-det").value === "1",
+          face: g.querySelector(".ea-face").value === "1",
+          how: "",
+          value: g.querySelector(".ea-val").value.trim(),
+          note: note,
+          checker: manager
+        });
       });
 
       openKey = null; render();
@@ -1320,6 +1469,143 @@
     return url + "&travelmode=driving";
   }
 
+  /* ---------- アルコールチェック（道路交通法施行規則 第9条の10） ---------- */
+  var ALC_KEYS = { pre: "乗務前", post: "乗務後" };
+
+  function alcOf(date, k) {
+    var t = trips[date];
+    return t && t.alc ? t.alc[k] : null;
+  }
+  function recordAlc(date, k, data) {
+    var t = trips[date] || (trips[date] = {});
+    t.alc = t.alc || {};
+    t.alc[k] = data;
+    writeLS(LS_TRIP, trips);
+  }
+  function clearAlc(date, k) {
+    var t = trips[date];
+    if (!t || !t.alc) return;
+    delete t.alc[k];
+    if (!Object.keys(t.alc).length) delete t.alc;
+    writeLS(LS_TRIP, trips);
+  }
+  function alcSummary(a) {
+    if (!a) return "";
+    return [
+      a.ok ? "酒気帯びなし" : "酒気帯びあり",
+      a.detector ? "検知器あり" : "検知器なし",
+      a.face ? "対面" : "対面以外（" + (a.how || "電話等") + "）",
+      a.value ? a.value + " mg/L" : "",
+      "確認者 " + (a.checker || "未記入")
+    ].filter(Boolean).join(" ・ ");
+  }
+
+  /* 前回同じ車両を使った日の帰着メーターを引き継ぐ */
+  function carryOverOdo(date) {
+    var t = trips[date];
+    if (!t || !t.vehicle || t.odoStart != null) return null;
+    var prev = Object.keys(trips).filter(function (d) {
+      return d < date && trips[d].vehicle === t.vehicle && typeof trips[d].odoEnd === "number";
+    }).sort().pop();
+    if (!prev) return null;
+    t.odoStart = trips[prev].odoEnd;
+    writeLS(LS_TRIP, trips);
+    return { from: prev, km: t.odoStart };
+  }
+
+  function renderAlc() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var box = $("alcBox");
+    var openForm = box.getAttribute("data-open") || "";
+
+    box.innerHTML = '<label class="veh-label" style="font-size:14px;margin-bottom:8px">アルコールチェック（法定記録）</label>' +
+      Object.keys(ALC_KEYS).map(function (k) {
+        var a = alcOf(today, k);
+        /* 出勤したのに乗務前が未記録、退勤したのに乗務後が未記録なら警告 */
+        var alert = !a && day && (k === "pre" || !day.open);
+        var body;
+        if (a) {
+          body = '<div class="alc-detail">' + esc(alcSummary(a)) +
+            (a.note ? "<br>指示事項: " + esc(a.note) : "") + "</div>" +
+            '<div class="alc-sub"><button data-undo="' + k + '">取り消してやり直す</button></div>';
+        } else {
+          body = '<button class="alc-ok" data-ok="' + k + '">酒気帯びなし（検知器で確認）</button>' +
+            '<div class="alc-sub"><button data-form="' + k + '">詳細を入力・酒気帯びありの記録</button></div>';
+        }
+        if (openForm === k) body += alcFormHTML(k);
+        return '<div class="alc-row" data-done="' + (a ? 1 : 0) + '" data-alert="' + (alert ? 1 : 0) + '">' +
+          '<div class="alc-head"><span class="alc-tag">' + ALC_KEYS[k] + "</span>" +
+          '<span class="alc-state">' + (a ? "<b>" + clockOf(a.at) + "</b> 記録済" : alert ? "未記録です" : "未記録") + "</span></div>" +
+          body + "</div>";
+      }).join("");
+
+    Array.prototype.forEach.call(box.querySelectorAll("[data-ok]"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-ok");
+        recordAlc(today, k, {
+          at: Date.now(), ok: true, detector: true, face: true,
+          value: "", note: "", checker: $("checker").value.trim()
+        });
+        box.setAttribute("data-open", "");
+        render();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-undo]"), function (b) {
+      b.addEventListener("click", function () {
+        clearAlc(today, b.getAttribute("data-undo"));
+        render();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-form]"), function (b) {
+      b.addEventListener("click", function () {
+        box.setAttribute("data-open", b.getAttribute("data-form"));
+        renderAlc();
+      });
+    });
+    var form = box.querySelector(".alc-form");
+    if (form) bindAlcForm(form, today);
+  }
+
+  function alcFormHTML(k) {
+    return '<div class="alc-form" data-k="' + k + '">' +
+      '<div class="alc-grid">' +
+      '<label><span>酒気帯び</span><select class="af-ok"><option value="1">なし</option><option value="0">あり</option></select></label>' +
+      '<label><span>検知器</span><select class="af-det"><option value="1">使用した</option><option value="0">使用しない</option></select></label>' +
+      "</div>" +
+      '<div class="alc-grid">' +
+      '<label><span>確認方法</span><select class="af-face"><option value="1">対面</option><option value="0">対面以外</option></select></label>' +
+      '<label><span>数値 mg/L（任意）</span><input class="af-val" type="text" inputmode="decimal" maxlength="6" placeholder="0.00"></label>' +
+      "</div>" +
+      '<label><span>対面以外の方法（任意）</span><input class="af-how" type="text" maxlength="30" placeholder="例: 電話とカメラで確認"></label>' +
+      '<label><span>指示事項（任意）</span><input class="af-note" type="text" maxlength="60" placeholder="例: 運転を中止させた"></label>' +
+      '<div class="editor-actions"><button class="btn btn-primary af-save">この内容で記録</button>' +
+      '<button class="btn af-cancel">閉じる</button></div>' +
+      "</div>";
+  }
+
+  function bindAlcForm(form, date) {
+    var k = form.getAttribute("data-k");
+    form.querySelector(".af-cancel").addEventListener("click", function () {
+      $("alcBox").setAttribute("data-open", "");
+      renderAlc();
+    });
+    form.querySelector(".af-save").addEventListener("click", function () {
+      recordAlc(date, k, {
+        at: Date.now(),
+        ok: form.querySelector(".af-ok").value === "1",
+        detector: form.querySelector(".af-det").value === "1",
+        face: form.querySelector(".af-face").value === "1",
+        how: form.querySelector(".af-how").value.trim(),
+        value: form.querySelector(".af-val").value.trim(),
+        note: form.querySelector(".af-note").value.trim(),
+        checker: $("checker").value.trim()
+      });
+      $("alcBox").setAttribute("data-open", "");
+      render();
+    });
+  }
+
   function renderTrip() {
     var today = dateKey(new Date());
     var day = dayOf(today);
@@ -1327,9 +1613,18 @@
     var now = new Date();
     $("tripDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
 
+    var carried = carryOverOdo(today);
+    t = tripOf(today);
+    $("odoNote").hidden = !carried;
+    if (carried) {
+      $("odoNote").textContent = "前回この車両を使った " + carried.from.slice(5).replace("-", "/") +
+        " の帰着メーター " + carried.km + " km を出発メーターに引き継ぎました。違う場合は直してください。";
+    }
+
     if (document.activeElement !== $("vehicle")) $("vehicle").value = t.vehicle;
     if (document.activeElement !== $("odoStart")) $("odoStart").value = t.odoStart == null ? "" : t.odoStart;
     if (document.activeElement !== $("odoEnd")) $("odoEnd").value = t.odoEnd == null ? "" : t.odoEnd;
+    if (document.activeElement !== $("checker")) $("checker").value = manager;
 
     var recents = recentVehicles().filter(function (v) { return v !== $("vehicle").value.trim(); });
     $("vehRecent").innerHTML = recents.length
@@ -1366,6 +1661,7 @@
       html += '<p class="gps-note">出勤・退勤の打刻時に位置情報が記録されると、立寄先と距離が自動で出ます。</p>';
     }
     $("gpsBox").innerHTML = html;
+    renderAlc();
   }
 
   /* ---------- 押し忘れの手入力 ---------- */
@@ -1419,6 +1715,20 @@
     var s = v == null ? "" : String(v);
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
+  /* CSVのアルコールチェック5列（日時・酒気帯び・検知器・方法・数値） */
+  function alcCells(date, k) {
+    var a = alcOf(date, k);
+    if (!a) return ["", "", "", "", ""];
+    var d = new Date(a.at);
+    return [
+      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + clockOf(a.at),
+      a.ok ? "なし" : "あり",
+      a.detector ? "使用" : "不使用",
+      a.face ? "対面" : "対面以外" + (a.how ? "(" + a.how + ")" : ""),
+      a.value || ""
+    ];
+  }
+
   function monthKeys() {
     var seen = {}, out = [];
     days().forEach(function (d) {
@@ -1432,6 +1742,10 @@
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
       "現場数", "現場名", "現場ごとの内訳",
       "車両", "出発メーター", "帰着メーター", "走行距離(km)", "GPS直線距離(km)", "立寄地点数",
+      "確認者",
+      "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
+      "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
+      "指示事項",
       "出勤地点", "退勤地点", "備考"];
     var lines = [head.join(",")];
     var total = 0, totalKm = 0;
@@ -1462,13 +1776,18 @@
         od == null ? "" : od,
         pts.length > 1 ? straightKm(pts).toFixed(1) : "",
         pts.length,
+        (alcOf(d.date, "pre") || {}).checker || (alcOf(d.date, "post") || {}).checker || ""
+      ].concat(alcCells(d.date, "pre")).concat(alcCells(d.date, "post")).concat([
+        [(alcOf(d.date, "pre") || {}).note, (alcOf(d.date, "post") || {}).note].filter(Boolean).join(" / "),
         first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
         last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
         d.sessions.some(function (r) { return r.manual; }) ? "手入力" : ""
-      ].map(csvCell).join(","));
+      ]).map(csvCell).join(","));
     });
-    lines.push(["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "",
-      "", "", "", totalKm || "", "", "", "", "", ""].map(csvCell).join(","));
+    var foot = ["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "",
+      "", "", "", totalKm || "", "", ""];
+    while (foot.length < head.length) foot.push("");
+    lines.push(foot.map(csvCell).join(","));
     return "﻿" + lines.join("\r\n") + "\r\n";
   }
   function currentMonthChoice() {
@@ -1531,6 +1850,7 @@
   /* ---------- boot ---------- */
   records = readLS(LS_REC, []);
   trips = readLS(LS_TRIP, {}) || {};
+  manager = readLS(LS_MGR, "") || "";
   meName = readLS(LS_ME, "") || "";
   lastExportAt = readLS(LS_EXPORT, 0) || 0;
   /* 以前の共有版で保存された記録があれば引き継ぐ */
@@ -1581,6 +1901,12 @@
     $(id).addEventListener("change", commitTrip);
     $(id).addEventListener("blur", commitTrip);
   });
+  function commitChecker() {
+    manager = $("checker").value.trim();
+    writeLS(LS_MGR, manager);
+  }
+  $("checker").addEventListener("change", commitChecker);
+  $("checker").addEventListener("blur", commitChecker);
 
   $("manualBtn").addEventListener("click", function () {
     if (manualOpen) { manualOpen = false; renderManual(); } else { openManual(); }

@@ -179,6 +179,7 @@
   <section class="card" id="result" hidden>
     <h2 class="card-title">集計結果</h2>
     <div class="stats" id="stats"></div>
+    <div id="lawBox"></div>
     <div id="warnBox"></div>
     <div class="tablewrap"><table id="summary"></table></div>
     <div class="actions">
@@ -205,10 +206,18 @@
   var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
     "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳",
     "車両", "出発メーター", "帰着メーター", "走行距離(km)", "GPS直線距離(km)", "立寄地点数",
+    "確認者",
+    "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
+    "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
+    "指示事項",
     "出勤地点", "退勤地点", "備考"];
-  /* 運行記録シートに出す列 */
-  var TRIP_COLS = ["社員名", "日付", "曜日", "車両", "出発メーター", "帰着メーター",
-    "走行距離(km)", "GPS直線距離(km)", "立寄地点数", "現場名", "現場ごとの内訳"];
+  /* 運転日誌シート（道路交通法施行規則 第9条の10 を想定した並び） */
+  var TRIP_COLS = ["日付", "曜日", "運転者", "自動車登録番号",
+    "運転開始", "運転終了", "出発メーター", "帰着メーター", "運転した距離(km)",
+    "運転の状況（立寄先）",
+    "乗務前_確認日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_確認方法", "乗務前_数値",
+    "乗務後_確認日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_確認方法", "乗務後_数値",
+    "指示事項", "確認者"];
 
   /* ---------- CSV 読み込み ---------- */
   function parseCsv(text) {
@@ -334,6 +343,31 @@
       stat("延べ出勤", list.length, "日") +
       stat("実働合計", fmtH(totalHours), "時間") +
       (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "");
+
+    /* 法定記録として欠けている日を洗い出す */
+    var lacking = list.map(function (o) {
+      var lack = [];
+      if (!o["車両"]) lack.push("車両");
+      if (!o["走行距離(km)"]) lack.push("距離");
+      if (!o["乗務前_日時"]) lack.push("乗務前チェック");
+      if (!o["乗務後_日時"]) lack.push("乗務後チェック");
+      return lack.length ? o["社員名"] + " " + o["日付"].slice(5).replace("-", "/") + " … " + lack.join("・") : null;
+    }).filter(Boolean);
+    var drunk = list.filter(function (o) {
+      return o["乗務前_酒気帯び"] === "あり" || o["乗務後_酒気帯び"] === "あり";
+    });
+
+    $("lawBox").innerHTML = (lacking.length || drunk.length)
+      ? "<div class='warn'>" +
+        (drunk.length ? "<b>酒気帯びありの記録が " + drunk.length + "件あります</b>" +
+          drunk.slice(0, 5).map(function (o) {
+            return "<div>" + esc(o["社員名"]) + " " + o["日付"] + "　指示事項: " + esc(o["指示事項"] || "未記入") + "</div>";
+          }).join("") + "<br>" : "") +
+        (lacking.length ? "<b>運転日誌に未記入があります（" + lacking.length + "日分）</b>" +
+          "<ul>" + lacking.slice(0, 6).map(function (s) { return "<li>" + esc(s) + "</li>"; }).join("") +
+          (lacking.length > 6 ? "<li>ほか " + (lacking.length - 6) + "日分</li>" : "") + "</ul>" : "") +
+        "</div>"
+      : "";
 
     $("warnBox").innerHTML = issues.length
       ? "<div class='warn'><b>同じ人・同じ日の記録が複数あります（" + issues.length + "件）</b>" +
@@ -467,34 +501,42 @@
       { i: sum.people.reduce(function (a, p) { gd += p.days; return a + p.days; }, 0) }
     ]));
 
-    /* 運行記録シート（車両かメーターが入っている日だけ） */
+    /* 運転日誌シート（車両・メーター・アルコールチェックのどれかが入っている日） */
+    var SRC = {
+      "運転者": "社員名", "自動車登録番号": "車両",
+      "運転開始": "出勤", "運転終了": "退勤",
+      "運転した距離(km)": "走行距離(km)", "運転の状況（立寄先）": "現場ごとの内訳",
+      "乗務前_確認日時": "乗務前_日時", "乗務前_確認方法": "乗務前_方法",
+      "乗務後_確認日時": "乗務後_日時", "乗務後_確認方法": "乗務後_方法"
+    };
     var tripRows = [TRIP_COLS.slice()];
     var kmTotal = 0;
     list.forEach(function (o) {
-      if (!o["車両"] && !o["出発メーター"] && !o["走行距離(km)"]) return;
+      if (!o["車両"] && !o["出発メーター"] && !o["走行距離(km)"] && !o["乗務前_日時"]) return;
       kmTotal += o["_km"];
       tripRows.push(TRIP_COLS.map(function (c) {
-        if (c === "日付") return { d: o[c] };
-        if (c === "出発メーター" || c === "帰着メーター" || c === "立寄地点数") {
-          var i = parseInt(o[c], 10);
+        var src = SRC[c] || c;
+        if (c === "日付") return { d: o[src] };
+        if (c === "出発メーター" || c === "帰着メーター") {
+          var i = parseInt(o[src], 10);
           return isNaN(i) ? "" : { i: i };
         }
-        if (c === "走行距離(km)" || c === "GPS直線距離(km)") {
-          var n = parseFloat(o[c]);
+        if (c === "運転した距離(km)") {
+          var n = parseFloat(o[src]);
           return isNaN(n) ? "" : { n: n };
         }
-        return o[c];
+        return o[src] || "";
       }));
     });
     if (tripRows.length > 1) {
       var pad = TRIP_COLS.map(function () { return ""; });
       pad[0] = "合計";
-      pad[6] = { n: Math.round(kmTotal * 10) / 10 };
+      pad[TRIP_COLS.indexOf("運転した距離(km)")] = { n: Math.round(kmTotal * 10) / 10 };
       tripRows.push(pad);
     }
 
     var sheets = [{ name: "明細", rows: detail }, { name: "月別集計", rows: summary }];
-    if (tripRows.length > 1) sheets.push({ name: "運行記録", rows: tripRows });
+    if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
     saveBlob(buildXlsx(sheets), "タイムカード集計-" + stamp() + ".xlsx");
   });
 
