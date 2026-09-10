@@ -335,6 +335,48 @@
   .ed-del { margin-top: 10px; font-size: 12px; padding: 6px 12px; }
   .ed-break { display: block; margin-bottom: 14px; max-width: 220px; }
 
+  /* ---------- 運行記録 ---------- */
+  .veh { margin-bottom: 14px; }
+  .veh-label { font-size: 14px; font-weight: 700; margin-bottom: 6px; display: block; }
+  .veh input {
+    width: 100%; padding: 11px 13px; border-radius: 10px; font-weight: 500;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .veh input::placeholder { color: var(--ink-3); font-weight: 400; }
+  .veh-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .veh-recent:empty { display: none; }
+  .veh-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+
+  .odo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .odo label > span {
+    display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .odo input {
+    width: 100%; padding: 11px 12px; border-radius: 10px; text-align: right;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  }
+  .gps {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 13px 14px;
+  }
+  .gps-line {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-size: 13px; color: var(--ink-2); padding: 2px 0;
+  }
+  .gps-line strong { font-weight: 500; color: var(--ink); }
+  .gps-line strong.big { font-size: 21px; }
+  .gps-note { font-size: 11.5px; color: var(--ink-3); margin: 8px 0 0; line-height: 1.5; }
+  .gps-route {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; margin-top: 11px; padding: 11px 14px; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent); border: 0; cursor: pointer;
+    font-size: 14px; font-weight: 700; text-decoration: none;
+  }
+  .gps-route:hover { filter: brightness(1.06); }
+  .gps-route[aria-disabled="true"] { background: var(--surface); color: var(--ink-3); border: 1px solid var(--line); cursor: default; }
+
   .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
   .calc-line {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -509,6 +551,26 @@
         <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
       </section>
 
+      <section class="card" id="tripCard" hidden>
+        <div class="card-head">
+          <h2 class="card-title">運行記録</h2>
+          <span class="card-note" id="tripDate"></span>
+        </div>
+
+        <div class="veh">
+          <label class="veh-label" for="vehicle">きょう使う車両</label>
+          <input type="text" id="vehicle" maxlength="30" placeholder="例: ハイエース / 品川 500 あ 12-34" autocomplete="off">
+          <div class="veh-recent" id="vehRecent"></div>
+        </div>
+
+        <div class="odo">
+          <label><span>出発メーター km</span><input type="number" id="odoStart" min="0" step="1" inputmode="numeric" placeholder="例: 45210"></label>
+          <label><span>帰着メーター km</span><input type="number" id="odoEnd" min="0" step="1" inputmode="numeric" placeholder="例: 45268"></label>
+        </div>
+
+        <div class="gps" id="gpsBox"></div>
+      </section>
+
       <section class="card" id="todayCard" hidden>
         <div class="card-head">
           <h2 class="card-title">本日の打刻</h2>
@@ -579,10 +641,12 @@
   var LS_REC = "genba-timecard-v1";
   var LS_ME = "genba-timecard-me-v1";
   var LS_EXPORT = "genba-timecard-export-v1";
+  var LS_TRIP = "genba-timecard-trips-v1";
   var WD = ["日", "月", "火", "水", "木", "金", "土"];
 
   var downloads = null;
   var records = [];
+  var trips = {};
   var meName = "";
   var lastExportAt = 0;
   var openKey = null;
@@ -841,6 +905,7 @@
     var showGate = !meName;
     $("gate").hidden = !showGate;
     $("punchCard").hidden = showGate;
+    $("tripCard").hidden = showGate;
     $("todayCard").hidden = showGate;
     $("meBtn").hidden = showGate;
     if (meName) $("meBtn").textContent = meName + " ▾";
@@ -879,7 +944,7 @@
     if (openKey) { pendingRender = true; return; }
     pendingRender = false;
     renderGate();
-    if (meName) { renderPunch(); renderSite(); renderToday(); }
+    if (meName) { renderPunch(); renderSite(); renderTrip(); renderToday(); }
     renderHistory();
     renderExport();
     renderManual();
@@ -1037,6 +1102,12 @@
     if (d.sessions.some(function (r) { return r.manual; })) {
       place = (place ? place + " ・ " : "") + "手入力";
     }
+    var km = odoDistance(d.date);
+    if (km == null) {
+      var gp = gpsPoints(d);
+      if (gp.length > 1) km = straightKm(gp).toFixed(1) + "≈";
+    }
+    if (km != null) place = (place ? place + " ・ " : "") + km + "km";
     return '<button class="day" data-key="' + esc(d.key) + '">' +
       '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
       '<span class="day-span"><span class="mono">' + span + "</span>" +
@@ -1096,6 +1167,15 @@
           (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
           "</div>";
       }).join("") +
+      '<div class="ed-sess">' +
+      '<div class="ed-sess-no">運行記録</div>' +
+      '<div class="editor-grid">' +
+      '<label><span>車両</span><input type="text" id="edVehicle" maxlength="30" value="' + esc(tripOf(d.date).vehicle) + '"></label>' +
+      '<label><span>出発メーター</span><input type="number" id="edOdoStart" min="0" step="1" value="' +
+      (tripOf(d.date).odoStart == null ? "" : tripOf(d.date).odoStart) + '"></label>' +
+      '<label><span>帰着メーター</span><input type="number" id="edOdoEnd" min="0" step="1" value="' +
+      (tripOf(d.date).odoEnd == null ? "" : tripOf(d.date).odoEnd) + '"></label>' +
+      "</div></div>" +
       '<div class="editor-actions">' +
       '<button class="btn btn-primary" id="edSave">保存</button>' +
       '<button class="btn" id="edCancel">閉じる</button>' +
@@ -1153,8 +1233,139 @@
         patchRecord(id, patch);
       });
 
+      var numOf = function (sel) {
+        var v = parseInt(ed.querySelector(sel).value, 10);
+        return isNaN(v) ? null : v;
+      };
+      saveTrip(d.date, {
+        vehicle: ed.querySelector("#edVehicle").value.trim(),
+        odoStart: numOf("#edOdoStart"),
+        odoEnd: numOf("#edOdoEnd")
+      });
+
       openKey = null; render();
     });
+  }
+
+  /* ---------- 運行記録 ---------- */
+  function tripOf(date) {
+    var t = trips[date] || {};
+    return { vehicle: t.vehicle || "", odoStart: t.odoStart, odoEnd: t.odoEnd };
+  }
+  function saveTrip(date, patch) {
+    var t = trips[date] || {};
+    Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
+    /* 空の記録は残さない */
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null) delete trips[date];
+    else trips[date] = t;
+    if (!writeLS(LS_TRIP, trips)) {
+      $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
+    }
+  }
+  function recentVehicles() {
+    var seen = {}, out = [];
+    Object.keys(trips).sort().reverse().forEach(function (d) {
+      var v = (trips[d].vehicle || "").trim();
+      if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    return out.slice(0, 4);
+  }
+  function odoDistance(date) {
+    var t = tripOf(date);
+    if (typeof t.odoStart !== "number" || typeof t.odoEnd !== "number") return null;
+    var d = t.odoEnd - t.odoStart;
+    return d >= 0 ? d : null;
+  }
+
+  /* 打刻に残った位置情報を、時刻順の立寄地点として取り出す */
+  function gpsPoints(day) {
+    if (!day) return [];
+    var pts = [];
+    day.sessions.forEach(function (r) {
+      if (r.inLoc) pts.push({ t: r.inAt, loc: r.inLoc, place: r.place || "", kind: "着" });
+      if (r.outAt && r.outLoc) pts.push({ t: r.outAt, loc: r.outLoc, place: r.place || "", kind: "発" });
+    });
+    pts.sort(function (a, b) { return a.t - b.t; });
+    /* ほぼ同じ地点が続く場合は1つにまとめる（同じ現場での出勤→退勤など） */
+    return pts.filter(function (p, i) {
+      if (i === 0) return true;
+      return haversineKm(pts[i - 1].loc, p.loc) >= 0.05;
+    });
+  }
+  function haversineKm(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var la1 = a.lat * rad, la2 = b.lat * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function straightKm(pts) {
+    var km = 0;
+    for (var i = 1; i < pts.length; i++) km += haversineKm(pts[i - 1].loc, pts[i].loc);
+    return km;
+  }
+  /* Googleマップの経路URL。開けば実際の道路距離が分かる */
+  function routeUrl(pts) {
+    if (pts.length < 2) return null;
+    var q = function (p) { return p.loc.lat + "," + p.loc.lng; };
+    var mid = pts.slice(1, -1);
+    /* 経由地は多すぎると開けないため間引く */
+    while (mid.length > 8) {
+      mid = mid.filter(function (_, i) { return i % 2 === 0; });
+    }
+    var url = "https://www.google.com/maps/dir/?api=1&origin=" + q(pts[0]) +
+      "&destination=" + q(pts[pts.length - 1]);
+    if (mid.length) url += "&waypoints=" + mid.map(q).join("|");
+    return url + "&travelmode=driving";
+  }
+
+  function renderTrip() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var t = tripOf(today);
+    var now = new Date();
+    $("tripDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
+
+    if (document.activeElement !== $("vehicle")) $("vehicle").value = t.vehicle;
+    if (document.activeElement !== $("odoStart")) $("odoStart").value = t.odoStart == null ? "" : t.odoStart;
+    if (document.activeElement !== $("odoEnd")) $("odoEnd").value = t.odoEnd == null ? "" : t.odoEnd;
+
+    var recents = recentVehicles().filter(function (v) { return v !== $("vehicle").value.trim(); });
+    $("vehRecent").innerHTML = recents.length
+      ? '<span class="rc-label">よく使う車両</span>' + recents.map(function (v) {
+          return '<button class="rc" data-veh="' + esc(v) + '">' + esc(v) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call($("vehRecent").querySelectorAll(".rc"), function (b) {
+      b.addEventListener("click", function () {
+        $("vehicle").value = b.getAttribute("data-veh");
+        saveTrip(today, { vehicle: $("vehicle").value.trim() });
+        renderTrip();
+      });
+    });
+
+    var pts = gpsPoints(day);
+    var sk = straightKm(pts);
+    var od = odoDistance(today);
+    var url = routeUrl(pts);
+
+    var html = "";
+    if (od != null) {
+      html += '<div class="gps-line"><span>メーターの走行距離</span><strong class="big mono">' + od + ' km</strong></div>';
+    }
+    html += '<div class="gps-line"><span>GPSの立寄地点</span><strong class="mono">' + pts.length + " か所</strong></div>";
+    html += '<div class="gps-line"><span>地点間の直線距離</span><strong class="' + (od == null ? "big " : "") + 'mono">' +
+      (pts.length > 1 ? sk.toFixed(1) + " km" : "—") + "</strong></div>";
+
+    if (url) {
+      html += '<a class="gps-route" href="' + url + '" target="_blank" rel="noopener noreferrer">地図でルートを開く（実距離を見る）</a>';
+      html += '<p class="gps-note">直線距離は目安です。実際の道路距離は上のボタンから確認し、メーター欄に入れておくと記録として残ります。</p>';
+    } else {
+      html += '<span class="gps-route" aria-disabled="true">ルートは2地点以上で表示されます</span>';
+      html += '<p class="gps-note">出勤・退勤の打刻時に位置情報が記録されると、立寄先と距離が自動で出ます。</p>';
+    }
+    $("gpsBox").innerHTML = html;
   }
 
   /* ---------- 押し忘れの手入力 ---------- */
@@ -1219,14 +1430,20 @@
   function buildCsv(month) {
     var list = days().filter(function (d) { return !month || d.date.slice(0, 7) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
-      "現場数", "現場名", "現場ごとの内訳", "出勤地点", "退勤地点", "備考"];
+      "現場数", "現場名", "現場ごとの内訳",
+      "車両", "出発メーター", "帰着メーター", "走行距離(km)", "GPS直線距離(km)", "立寄地点数",
+      "出勤地点", "退勤地点", "備考"];
     var lines = [head.join(",")];
-    var total = 0;
+    var total = 0, totalKm = 0;
     list.slice().reverse().forEach(function (d) {
       var first = d.sessions[0];
       var last = d.sessions[d.sessions.length - 1];
       var dt = parseKey(d.date);
       total += d.workMs;
+      var tr = tripOf(d.date);
+      var od = odoDistance(d.date);
+      var pts = gpsPoints(d);
+      if (od != null) totalKm += od;
       lines.push([
         meName, d.date, WD[dt.getDay()],
         clockOf(first.inAt),
@@ -1239,12 +1456,19 @@
             " " + (r.place || "現場名なし") +
             (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
         }).join(" ／ "),
+        tr.vehicle,
+        tr.odoStart == null ? "" : tr.odoStart,
+        tr.odoEnd == null ? "" : tr.odoEnd,
+        od == null ? "" : od,
+        pts.length > 1 ? straightKm(pts).toFixed(1) : "",
+        pts.length,
         first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
         last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
         d.sessions.some(function (r) { return r.manual; }) ? "手入力" : ""
       ].map(csvCell).join(","));
     });
-    lines.push(["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "", "", "", ""].map(csvCell).join(","));
+    lines.push(["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "",
+      "", "", "", totalKm || "", "", "", "", "", ""].map(csvCell).join(","));
     return "﻿" + lines.join("\r\n") + "\r\n";
   }
   function currentMonthChoice() {
@@ -1306,6 +1530,7 @@
 
   /* ---------- boot ---------- */
   records = readLS(LS_REC, []);
+  trips = readLS(LS_TRIP, {}) || {};
   meName = readLS(LS_ME, "") || "";
   lastExportAt = readLS(LS_EXPORT, 0) || 0;
   /* 以前の共有版で保存された記録があれば引き継ぐ */
@@ -1337,6 +1562,25 @@
     placeTimer = setTimeout(commitPlace, 500);
   });
   $("place").addEventListener("blur", commitPlace);
+
+  function commitTrip() {
+    var today = dateKey(new Date());
+    var num = function (el) {
+      var v = parseInt($(el).value, 10);
+      return isNaN(v) ? null : v;
+    };
+    saveTrip(today, {
+      vehicle: $("vehicle").value.trim(),
+      odoStart: num("odoStart"),
+      odoEnd: num("odoEnd")
+    });
+    renderTrip();
+    renderHistory();
+  }
+  ["vehicle", "odoStart", "odoEnd"].forEach(function (id) {
+    $(id).addEventListener("change", commitTrip);
+    $(id).addEventListener("blur", commitTrip);
+  });
 
   $("manualBtn").addEventListener("click", function () {
     if (manualOpen) { manualOpen = false; renderManual(); } else { openManual(); }
