@@ -135,7 +135,17 @@
     font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
     text-transform: uppercase; color: var(--ink-3); line-height: 1;
   }
-  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: .04em; line-height: 1.3; }
+  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: .04em; line-height: 1.3; white-space: nowrap; }
+  /* 画面が狭いときはヘッダーを詰めて、記録ボタンの分の高さを取り戻す */
+  @media (max-width: 430px) {
+    .top { padding-bottom: 11px; margin-bottom: 14px; }
+    .brand-eyebrow { display: none; }
+    .brand-name { font-size: 15px; }
+    .brand svg { width: 26px; height: 26px; }
+    .now-time { font-size: 22px; }
+    .now-time .sec { font-size: 13px; }
+    .now-date { font-size: 11px; }
+  }
   .now { text-align: right; }
   .now-time { font-size: 26px; font-weight: 500; letter-spacing: .01em; line-height: 1.1; }
   .now-time .sec { font-size: 15px; color: var(--ink-3); }
@@ -146,12 +156,24 @@
     font-size: 12px; font-weight: 700; letter-spacing: .04em;
   }
   .me-btn:hover { filter: brightness(.97); }
-  .top-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; flex-wrap: wrap; }
-  .view-btn {
-    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px;
-    padding: 4px 13px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  .top-btns {
+    display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    margin-top: 7px; flex-wrap: wrap;
   }
-  .view-btn:hover { filter: brightness(1.08); }
+  .view-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 11px;
+    padding: 0 18px; min-height: 44px; cursor: pointer;
+    font-size: 15px; font-weight: 700; letter-spacing: .06em;
+    box-shadow: 0 2px 0 var(--accent-ink), 0 6px 14px -8px rgba(16,30,27,.6);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .view-btn:hover { filter: brightness(1.06); }
+  .view-btn:active { transform: translateY(2px); box-shadow: 0 0 0 var(--accent-ink); }
+  @media (prefers-reduced-motion: reduce) {
+    .view-btn { transition: none; }
+    .view-btn:active { transform: none; }
+  }
 
   /* 折りたたみカード */
   details.card > summary {
