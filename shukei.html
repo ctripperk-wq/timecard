@@ -183,12 +183,11 @@
     <div id="warnBox"></div>
     <div class="tablewrap"><table id="summary"></table></div>
     <div class="actions">
-      <button class="btn btn-primary" id="xlsxBtn">勤怠をExcelで保存</button>
-      <button class="btn" id="tripXlsxBtn">運転日誌をExcelで保存</button>
+      <button class="btn btn-primary" id="xlsxBtn">Excelファイルで保存</button>
       <button class="btn" id="csvBtn">1つのCSVで保存</button>
       <button class="btn" id="clearBtn">読み込みをやり直す</button>
     </div>
-    <p class="note" id="csvNote">勤怠のExcelには「明細」と「月別集計」が入ります。明細は出退勤・拘束・休憩・実働に加え、現場名（日勤／夜勤）・作業内容・作業員（自社／応援／外注）が並びます。運転日誌は横に長くなるため別ファイルです。どちらもフィルタ付きで、日付は日付として入ります。</p>
+    <p class="note" id="csvNote">Excelは1つのファイルに「勤怠明細」「月別集計」「運転日誌」の3シートが入ります。勤怠明細は出退勤・拘束・休憩・実働に加え、現場名（日勤／夜勤）・作業内容・作業員（自社／応援／外注）。運転日誌は別シートなので、勤怠のシートが横に長くなりません。どのシートもフィルタ付きで、日付は日付として入ります。</p>
   </section>
 
   <section class="card" id="blank">
@@ -537,13 +536,7 @@
       { i: sum.people.reduce(function (a, p) { gd += p.days; return a + p.days; }, 0) }
     ]));
 
-    var sheets = [{ name: "明細", rows: detail }, { name: "月別集計", rows: summary }];
-    saveBlob(buildXlsx(sheets), "勤怠集計-" + stamp() + ".xlsx");
-  });
-
-  /* 運転日誌は別ファイル。勤怠と分けて保管できるようにする。 */
-  $("tripXlsxBtn").addEventListener("click", function () {
-    var list = rebuild();
+    /* 運転日誌は同じファイル内の別シートにする（勤怠と横並びにしない） */
     var SRC = {
       "運転者": "社員名", "自動車登録番号": "車両",
       "運転開始": "出勤", "運転終了": "退勤",
@@ -570,15 +563,16 @@
         return o[src] || "";
       }));
     });
-    if (tripRows.length <= 1) {
-      $("csvNote").textContent = "運行記録（車両・メーター・アルコールチェック）が入っている日がありません。";
-      return;
+    if (tripRows.length > 1) {
+      var pad = TRIP_COLS.map(function () { return ""; });
+      pad[0] = "合計";
+      pad[TRIP_COLS.indexOf("運転した距離(km)")] = { n: Math.round(kmTotal * 10) / 10 };
+      tripRows.push(pad);
     }
-    var pad = TRIP_COLS.map(function () { return ""; });
-    pad[0] = "合計";
-    pad[TRIP_COLS.indexOf("運転した距離(km)")] = { n: Math.round(kmTotal * 10) / 10 };
-    tripRows.push(pad);
-    saveBlob(buildXlsx([{ name: "運転日誌", rows: tripRows }]), "運転日誌-" + stamp() + ".xlsx");
+
+    var sheets = [{ name: "勤怠明細", rows: detail }, { name: "月別集計", rows: summary }];
+    if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
+    saveBlob(buildXlsx(sheets), "タイムカード集計-" + stamp() + ".xlsx");
   });
 
   /* ---------- xlsx を組み立てる（外部ライブラリなし） ----------

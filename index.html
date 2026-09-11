@@ -1521,9 +1521,9 @@
       if (gp.length > 1) kmLabel = straightKm(gp).toFixed(1) + "km（直線）";
     }
     if (kmLabel) place = (place ? place + " ・ " : "") + kmLabel;
-    var crewN = crewOf(d.date, "own").length + crewOf(d.date, "help").length + crewOf(d.date, "out").length;
+    var crewN = dayCrew(d, "own").length + dayCrew(d, "help").length + dayCrew(d, "out").length;
     var helpBadge = crewN ? '<span class="day-who">' + crewN + "名</span>" : "";
-    var task = taskOf(d.date);
+    var task = dayTask(d);
     if (task) place = (place ? place + " ・ " : "") + task;
     return '<button class="day" data-key="' + esc(d.key) + '">' +
       '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
@@ -1700,11 +1700,12 @@
   }
 
   /* 編集画面の1行入力欄 */
-  function edFieldHTML(id, label, value, ph) {
+  function edFieldHTML(id, label, value, ph, cls) {
     return '<label style="display:block;margin-bottom:9px">' +
       '<span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">' +
       esc(label) + "</span>" +
-      '<input type="text" id="' + id + '" maxlength="200" placeholder="' + esc(ph || "") +
+      '<input type="text"' + (id ? ' id="' + id + '"' : "") + (cls ? ' class="' + cls + '"' : "") +
+      ' maxlength="200" placeholder="' + esc(ph || "") +
       '" value="' + esc(value || "") + '" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)"></label>';
   }
   /* 「会社名, 名前」を空白区切りで並べた文字列を配列に戻す */
@@ -1723,16 +1724,6 @@
   function editorHTML(d) {
     var many = d.sessions.length > 1;
     return '<div class="editor" data-key="' + esc(d.key) + '">' +
-      /* 打刻画面と同じ順番。作業内容と作業員を先に置く。 */
-      '<div class="ed-sess" style="border-top:0;padding-top:0;margin-top:0">' +
-      '<div class="ed-sess-no">作業内容と作業員</div>' +
-      edFieldHTML("edTask", "作業内容", taskOf(d.date), "例: 天井開口 機器吊り込み") +
-      Object.keys(CREW).map(function (kind) {
-        return edFieldHTML("edCrew_" + kind, CREW[kind].label + "（空白区切り" +
-          (CREW[kind].co ? "。会社名は「会社名, 名前」" : "") + "）",
-          crewOf(d.date, kind).map(crewText).join(" "),
-          CREW[kind].co ? "○○工業, 村上　高川" : "森本　磯谷");
-      }).join("") + "</div>" +
       '<label class="ed-break"><span>休憩（分）／1日あたり</span>' +
       '<input type="number" id="edBreak" min="0" step="5" value="' + d.breakMin + '"></label>' +
       d.sessions.map(function (r, i) {
@@ -1743,6 +1734,13 @@
           "<label><span>退勤</span>" + timeFieldHTML("ed-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
           '<label><span>現場名</span><input type="text" class="ed-place" maxlength="40" value="' + esc(r.place || "") + '"></label>' +
           "</div>" +
+          edFieldHTML("", "作業内容", sessionTask(r), "例: 天井開口 機器吊り込み", "es-task") +
+          Object.keys(CREW).map(function (kind) {
+            return edFieldHTML("", CREW[kind].label +
+              (CREW[kind].co ? "（空白区切り。会社名は「会社名, 名前」）" : "（空白区切り）"),
+              sessionCrew(r, kind).map(crewText).join(" "),
+              CREW[kind].co ? "○○工業, 村上　高川" : "森本　磯谷", "es-crew-" + kind);
+          }).join("") +
           edLocHTML(r) +
           (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
           "</div>";
@@ -1826,6 +1824,12 @@
         var inVal = readTimeField(block, "ed-in");
         var outVal = readTimeField(block, "ed-out");
         var patch = { breakMin: brk, place: block.querySelector(".ed-place").value.trim() };
+        /* 作業内容と作業員は打刻ごとに保存する */
+        patch.task = block.querySelector(".es-task").value.trim();
+        patch.crew = { own: [], help: [], out: [] };
+        Object.keys(CREW).forEach(function (kind) {
+          patch.crew[kind] = parseCrew(block.querySelector(".es-crew-" + kind).value, CREW[kind].co);
+        });
         var inAt = inVal ? at(inVal) : rec.inAt;
         patch.inAt = inAt;
         if (outVal) {
@@ -1836,11 +1840,6 @@
         patchRecord(id, patch);
       });
 
-      saveTask(d.date, ed.querySelector("#edTask").value.trim());
-      Object.keys(CREW).forEach(function (kind) {
-        saveCrew(d.date, kind,
-          parseCrew(ed.querySelector("#edCrew_" + kind).value, CREW[kind].co));
-      });
 
       var numOf = function (sel) {
         var v = parseInt(ed.querySelector(sel).value, 10);
@@ -2016,30 +2015,44 @@
     out: { label: "作業員（外注）", box: "crewOut", co: true, ph: "例: 高川" }
   };
 
-  function crewOf(date, kind) {
-    var t = trips[date];
-    if (!t) return [];
-    /* 以前の版の helpers を応援として引き継ぐ */
-    if (kind === "help" && !t.crew && t.helpers) return t.helpers;
-    return (t.crew && t.crew[kind]) ? t.crew[kind] : [];
+  /* 作業内容と作業員は打刻（現場）ごとに持つ */
+  function sessionCrew(r, kind) { return (r && r.crew && r.crew[kind]) ? r.crew[kind] : []; }
+  function sessionTask(r) { return (r && r.task) ? r.task : ""; }
+  function saveSessionCrew(id, kind, list) {
+    var rec = records.filter(function (x) { return x.id === id; })[0];
+    if (!rec) return;
+    var crew = rec.crew || { own: [], help: [], out: [] };
+    crew[kind] = list;
+    patchRecord(id, { crew: crew });
   }
-  function saveCrew(date, kind, list) {
-    var t = trips[date] || (trips[date] = {});
-    if (!t.crew) {
-      t.crew = { own: [], help: t.helpers || [], out: [] };
-      delete t.helpers;
-    }
-    t.crew[kind] = list;
-    if (!t.crew.own.length && !t.crew.help.length && !t.crew.out.length) delete t.crew;
-    pruneTrip(date);
-    writeLS(LS_TRIP, trips);
+  /* いま入力対象になる打刻。勤務中ならその打刻、退勤後は本日の最後の打刻。 */
+  function targetSession() {
+    var act = activeRecord();
+    if (act) return act;
+    var d = dayOf(dateKey(new Date()));
+    return d ? d.sessions[d.sessions.length - 1] : null;
   }
-  function taskOf(date) { var t = trips[date]; return (t && t.task) ? t.task : ""; }
-  function saveTask(date, v) {
-    var t = trips[date] || (trips[date] = {});
-    if (v) t.task = v; else delete t.task;
-    pruneTrip(date);
-    writeLS(LS_TRIP, trips);
+  /* 1日ぶんをまとめたもの（CSVや履歴の表示用） */
+  function dayCrew(d, kind) {
+    var seen = {}, out = [];
+    d.sessions.forEach(function (r) {
+      sessionCrew(r, kind).forEach(function (p) {
+        var k = crewText(p);
+        if (!seen[k]) { seen[k] = 1; out.push(p); }
+      });
+    });
+    return out;
+  }
+  function dayTask(d) {
+    var many = placesOf(d).length > 1;
+    var parts = [];
+    d.sessions.forEach(function (r) {
+      var t = sessionTask(r);
+      if (!t) return;
+      var label = many && r.place ? r.place + ": " + t : t;
+      if (parts.indexOf(label) < 0) parts.push(label);
+    });
+    return parts.join(" ／ ");
   }
   /* 中身が空になった日の記録は残さない */
   function pruneTrip(date) {
@@ -2053,8 +2066,8 @@
 
   function recentCrew(kind) {
     var seen = {}, out = [];
-    Object.keys(trips).sort().reverse().forEach(function (d) {
-      crewOf(d, kind).forEach(function (p) {
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      sessionCrew(r, kind).forEach(function (p) {
         var k = crewText(p);
         if (!seen[k]) { seen[k] = 1; out.push(p); }
       });
@@ -2063,15 +2076,24 @@
   }
 
   function renderCrew() {
-    var today = dateKey(new Date());
-    var now = new Date();
-    $("crewDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
-    if (document.activeElement !== $("task")) $("task").value = taskOf(today);
+    var target = targetSession();
+    $("crewDate").textContent = target
+      ? (target.place || "現場名未入力") + "　" + clockOf(target.inAt) + "〜"
+      : "打刻するとここに入ります";
+    $("crewCard").querySelector(".card-title").textContent =
+      "作業内容と作業員" + (target ? "（この現場）" : "");
+    $("task").disabled = !target;
+    if (document.activeElement !== $("task")) $("task").value = sessionTask(target);
 
     Object.keys(CREW).forEach(function (kind) {
       var spec = CREW[kind];
-      var list = crewOf(today, kind);
+      var list = sessionCrew(target, kind);
       var box = $(spec.box);
+      if (!target) {
+        box.innerHTML = '<span class="crew-label">' + spec.label + "</span>" +
+          '<p class="gps-note" style="margin:0">出勤を押すと入力できます。</p>';
+        return;
+      }
       box.innerHTML = '<span class="crew-label">' + spec.label + "</span>" +
         '<div class="crew-chips">' + list.map(function (p, i) {
           return '<span class="crew-chip" data-kind="' + kind + '">' +
@@ -2095,7 +2117,7 @@
         : "";
       Array.prototype.forEach.call(rbox.querySelectorAll("[data-add]"), function (b) {
         b.addEventListener("click", function () {
-          saveCrew(today, kind, list.concat([recents[+b.getAttribute("data-add")]]));
+          saveSessionCrew(target.id, kind, list.concat([recents[+b.getAttribute("data-add")]]));
           render();
         });
       });
@@ -2103,7 +2125,7 @@
         b.addEventListener("click", function () {
           var next = list.slice();
           next.splice(+b.getAttribute("data-del"), 1);
-          saveCrew(today, kind, next);
+          saveSessionCrew(target.id, kind, next);
           render();
         });
       });
@@ -2114,7 +2136,7 @@
         var coEl = box.querySelector(".ci-co");
         var p = { co: coEl ? coEl.value.trim() : "", name: name };
         if (!list.some(function (x) { return sameCrew(x, p); })) {
-          saveCrew(today, kind, list.concat([p]));
+          saveSessionCrew(target.id, kind, list.concat([p]));
         }
         render();
       };
@@ -2676,10 +2698,10 @@
             " " + (r.place || "現場名なし") +
             (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
         }).join(" ／ "),
-        taskOf(d.date),
-        crewOf(d.date, "own").map(crewText).join(" "),
-        crewOf(d.date, "help").map(crewText).join(" "),
-        crewOf(d.date, "out").map(crewText).join(" "),
+        dayTask(d),
+        dayCrew(d, "own").map(crewText).join(" "),
+        dayCrew(d, "help").map(crewText).join(" "),
+        dayCrew(d, "out").map(crewText).join(" "),
         tr.vehicle,
         BASE_LABEL[baseChoice(d.date).from] || "",
         BASE_LABEL[baseChoice(d.date).to] || "",
@@ -2778,6 +2800,28 @@
   if (!bases.office) bases.office = DEFAULT_OFFICE;
   meName = readLS(LS_ME, "") || "";
   lastExportAt = readLS(LS_EXPORT, 0) || 0;
+  /* 日ごとに持っていた作業内容・作業員を、その日の打刻へ移す（旧版からの引き継ぎ） */
+  (function () {
+    var moved = false;
+    Object.keys(trips).forEach(function (d) {
+      var t = trips[d];
+      if (!t.task && !t.crew && !t.helpers) return;
+      var sess = records.filter(function (r) { return r.date === d; })
+        .sort(function (a, b) { return a.inAt - b.inAt; });
+      if (sess.length) {
+        var first = sess[0];
+        if (t.task && !first.task) first.task = t.task;
+        if (!first.crew) {
+          first.crew = t.crew || { own: [], help: t.helpers || [], out: [] };
+        }
+        moved = true;
+      }
+      delete t.task; delete t.crew; delete t.helpers;
+      pruneTrip(d);
+    });
+    if (moved) { saveRecords(); writeLS(LS_TRIP, trips); }
+  })();
+
   /* 以前の共有版で保存された記録があれば引き継ぐ */
   records.forEach(function (r) { if (!r.empName && meName) r.empName = meName; });
   /* 位置情報が使えない環境かどうかを、打刻を待たずに知らせる */
@@ -2809,8 +2853,11 @@
   $("place").addEventListener("blur", commitPlace);
 
   function commitTask() {
-    saveTask(dateKey(new Date()), $("task").value.trim());
+    var t = targetSession();
+    if (!t) return;
+    patchRecord(t.id, { task: $("task").value.trim() });
     renderHistory();
+    renderToday();
   }
   $("task").addEventListener("change", commitTask);
   $("task").addEventListener("blur", commitTask);
