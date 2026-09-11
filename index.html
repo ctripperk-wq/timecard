@@ -13,8 +13,6 @@
   img { max-width: 100%; }
   [hidden] { display: none !important; }
 </style>
-</head>
-<body>
 <title>現場タイムカード</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -98,7 +96,8 @@
 
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html { -webkit-text-size-adjust: 100%; }
+  /* 端末側の文字サイズ設定で勝手に拡大されないようにする */
+  html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
   body {
     margin: 0;
     background: var(--ground);
@@ -649,7 +648,8 @@
   .export textarea {
     width: 100%; height: 120px; padding: 10px; border-radius: 9px;
     border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
-    font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.5; resize: vertical;
+    /* 16px未満だと Android がタップ時にズームして戻らないため下げない */
+    font-family: "IBM Plex Mono", monospace; font-size: 16px; line-height: 1.5; resize: vertical;
   }
   .export-note { font-size: 11.5px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.5; }
 
@@ -715,7 +715,8 @@
   .gotomerge a::before { content: "▸"; }
   .gotomerge a:hover { background: var(--accent); color: var(--on-accent); }
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header class="top">
     <div class="brand">
