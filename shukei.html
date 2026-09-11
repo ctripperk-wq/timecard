@@ -299,7 +299,7 @@
   function summarize(list) {
     var people = {}, order = [], months = {};
     list.forEach(function (o) {
-      var m = o["日付"].slice(0, 7);
+      var m = periodKey(o["日付"]);
       months[m] = 1;
       var p = people[o["社員名"]];
       if (!p) { p = people[o["社員名"]] = { name: o["社員名"], months: {}, days: 0, hours: 0, km: 0 }; order.push(o["社員名"]); }
@@ -315,7 +315,22 @@
 
   /* ---------- 画面 ---------- */
   function fmtH(h) { return (Math.round(h * 100) / 100).toFixed(2); }
-  function monthLabel(m) { var p = m.split("-"); return p[0] + "年" + (+p[1]) + "月"; }
+
+  /* 締め日は25日。26日から翌25日までを1つの「◯月度」として集計する。 */
+  var CLOSE_DAY = 25;
+  function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+  function periodKey(dateStr) {
+    var p = dateStr.split("-");
+    var y = +p[0], m = +p[1], d = +p[2];
+    if (d > CLOSE_DAY) { m += 1; if (m > 12) { m = 1; y += 1; } }
+    return y + "-" + pad2(m);
+  }
+  function monthLabel(key) {
+    var p = key.split("-");
+    var y = +p[0], m = +p[1];
+    var sm = m - 1; if (sm < 1) sm = 12;
+    return y + "年" + m + "月度(" + sm + "/" + (CLOSE_DAY + 1) + "〜" + m + "/" + CLOSE_DAY + ")";
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
@@ -339,7 +354,7 @@
     var totalKm = list.reduce(function (a, o) { return a + o["_km"]; }, 0);
     $("stats").innerHTML =
       stat("社員数", sum.people.length, "人") +
-      stat("対象月", sum.months.length, "か月") +
+      stat("対象月度", sum.months.length, "か月") +
       stat("延べ出勤", list.length, "日") +
       stat("実働合計", fmtH(totalHours), "時間") +
       (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "");

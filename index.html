@@ -495,7 +495,12 @@
     padding: 6px 0 8px; border-bottom: 1px solid var(--line-strong);
     position: sticky; top: 0; background: var(--surface); z-index: 1;
   }
+  .month-head { flex-wrap: wrap; }
   .month-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+  .month-span {
+    display: block; font-size: 11px; font-weight: 400; color: var(--ink-3);
+    letter-spacing: 0; margin-top: 1px;
+  }
   .month-sum { font-size: 12px; color: var(--ink-2); }
   .month-sum b { font-size: 15px; font-weight: 500; color: var(--ink); }
 
@@ -870,6 +875,30 @@
   }
   function decHours(ms) { return (Math.max(0, ms) / 3600000).toFixed(2); }
   function parseKey(key) { var p = key.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+  /* 締め日は25日。26日から翌25日までを1つの「◯月度」として扱う。 */
+  var CLOSE_DAY = 25;
+  function periodKey(dateStr) {
+    var p = dateStr.split("-");
+    var y = +p[0], m = +p[1], d = +p[2];
+    if (d > CLOSE_DAY) { m += 1; if (m > 12) { m = 1; y += 1; } }
+    return y + "-" + pad(m);
+  }
+  function periodRange(key) {
+    var p = key.split("-");
+    var y = +p[0], m = +p[1];
+    var sy = y, sm = m - 1;
+    if (sm < 1) { sm = 12; sy = y - 1; }
+    return { sy: sy, sm: sm, y: y, m: m };
+  }
+  function periodName(key) {
+    var r = periodRange(key);
+    return r.y + "年" + r.m + "月度";
+  }
+  function periodSpan(key) {
+    var r = periodRange(key);
+    return r.sm + "/" + (CLOSE_DAY + 1) + "〜" + r.m + "/" + CLOSE_DAY;
+  }
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
@@ -1470,15 +1499,15 @@
     }
     var months = [], index = {};
     all.forEach(function (d) {
-      var m = d.date.slice(0, 7);
+      var m = periodKey(d.date);
       if (!index[m]) { index[m] = { key: m, days: [], total: 0 }; months.push(index[m]); }
       index[m].days.push(d);
       index[m].total += d.workMs;
     });
     host.innerHTML = months.map(function (m) {
-      var mp = m.key.split("-");
       return '<div class="month"><div class="month-head"><span class="month-name">' +
-        mp[0] + "年" + (+mp[1]) + '月</span><span class="month-sum">' + m.days.length +
+        periodName(m.key) + '<small class="month-span">' + periodSpan(m.key) + "</small></span>" +
+        '<span class="month-sum">' + m.days.length +
         '日 ／ 実働 <b class="mono">' + fmtHM(m.total) + "</b></span></div>" +
         m.days.map(dayRowHTML).join("") + "</div>";
     }).join("");
@@ -2292,13 +2321,13 @@
   function monthKeys() {
     var seen = {}, out = [];
     days().forEach(function (d) {
-      var m = d.date.slice(0, 7);
+      var m = periodKey(d.date);
       if (!seen[m]) { seen[m] = 1; out.push(m); }
     });
     return out;
   }
   function buildCsv(month) {
-    var list = days().filter(function (d) { return !month || d.date.slice(0, 7) === month; });
+    var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
       "現場数", "現場名", "現場ごとの内訳",
       "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
@@ -2404,10 +2433,9 @@
     exportOpen = true;
     var sel = $("csvMonth");
     var months = monthKeys();
-    var thisMonth = dateKey(new Date()).slice(0, 7);
+    var thisMonth = periodKey(dateKey(new Date()));
     sel.innerHTML = months.map(function (m) {
-      var mp = m.split("-");
-      return '<option value="' + m + '">' + mp[0] + "年" + (+mp[1]) + "月</option>";
+      return '<option value="' + m + '">' + periodName(m) + "（" + periodSpan(m) + "）</option>";
     }).join("") + '<option value="all">全期間</option>';
     sel.value = months.indexOf(thisMonth) >= 0 ? thisMonth : (months[0] || "all");
     refreshCsvText();
