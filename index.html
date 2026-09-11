@@ -1542,6 +1542,86 @@
       "</div>";
   }
 
+  /* 過去の打刻の位置を直す欄。現場名から引き当てるか、地図で指定する。 */
+  function edLocHTML(r) {
+    var loc = r.inLoc || r.outLoc;
+    var state = loc
+      ? "位置: <b>" + loc.lat + ", " + loc.lng + "</b>" + (r.locSrc ? "（" + esc(r.locSrc) + "）" : "")
+      : "位置の記録がありません";
+    return '<div class="mnloc" data-locid="' + r.id + '">' +
+      '<div class="mnloc-state">' + state + "</div>" +
+      '<div class="mnloc-btns">' +
+      '<button class="btn" data-locname="' + r.id + '">現場名から取得</button>' +
+      '<button class="btn" data-locmap="' + r.id + '">地図から選ぶ</button>' +
+      '<button class="btn" data-lochere="' + r.id + '">現在地</button>' +
+      (loc ? '<button class="btn" data-locclear="' + r.id + '">位置を消す</button>' : "") +
+      "</div></div>";
+  }
+
+  function setRecordLoc(id, loc, src) {
+    patchRecord(id, { inLoc: loc, outLoc: loc, locSrc: loc ? src : "" });
+    renderHistory();
+    renderToday();
+  }
+
+  function bindEditorLoc(ed) {
+    var nameOf = function (id) {
+      var block = ed.querySelector('.ed-sess[data-id="' + id + '"]');
+      var input = block && block.querySelector(".ed-place");
+      if (input && input.value.trim()) return input.value.trim();
+      var rec = records.filter(function (x) { return x.id === id; })[0];
+      return rec ? (rec.place || "") : "";
+    };
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locname]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-locname");
+        var hit = placeLocation(nameOf(id), id);
+        var box = ed.querySelector('.mnloc[data-locid="' + id + '"] .mnloc-state');
+        if (!hit) {
+          box.innerHTML = "「" + esc(nameOf(id) || "（現場名なし）") +
+            "」の位置は、ほかの記録にもありません。地図から指定してください。";
+          return;
+        }
+        setRecordLoc(id, hit.loc, "過去の記録（" + hit.date.slice(5).replace("-", "/") + "）から");
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locmap]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-locmap");
+        var rec = records.filter(function (x) { return x.id === id; })[0];
+        openMapPicker(rec && (rec.inLoc || rec.outLoc), function (loc) {
+          setRecordLoc(id, loc, "地図で指定");
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-lochere]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-lochere");
+        b.textContent = "取得中…";
+        b.disabled = true;
+        getLocation().then(function (loc) {
+          b.disabled = false;
+          b.textContent = "現在地";
+          if (!loc) {
+            var box = ed.querySelector('.mnloc[data-locid="' + id + '"] .mnloc-state');
+            box.textContent = geoDetail || "現在地を取得できませんでした。";
+            return;
+          }
+          setRecordLoc(id, loc, "現在地");
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locclear]"), function (b) {
+      b.addEventListener("click", function () {
+        setRecordLoc(b.getAttribute("data-locclear"), null, "");
+      });
+    });
+  }
+
   function editorHTML(d) {
     var many = d.sessions.length > 1;
     return '<div class="editor" data-key="' + esc(d.key) + '">' +
@@ -1555,6 +1635,7 @@
           "<label><span>退勤</span>" + timeFieldHTML("ed-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
           '<label><span>現場名</span><input type="text" class="ed-place" maxlength="40" value="' + esc(r.place || "") + '"></label>' +
           "</div>" +
+          edLocHTML(r) +
           (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
           "</div>";
       }).join("") +
@@ -1587,6 +1668,7 @@
     var key = ed.getAttribute("data-key");
     var close = function () { openKey = null; renderHistory(); if (pendingRender) render(); };
     ed.querySelector("#edCancel").addEventListener("click", close);
+    bindEditorLoc(ed);
 
     /* 削除は2回押し。1回目は確認、4秒で元に戻る。 */
     var arm = function (btn, label, run) {
@@ -2082,11 +2164,12 @@
 
   /* ---------- 現場名から位置を引き当てる ---------- */
   /* 過去に同じ現場名で打刻した位置を探す。個人宅など地図検索で出ない現場に効く。 */
-  function placeLocation(name) {
+  function placeLocation(name, excludeId) {
     var key = (name || "").trim();
     if (!key) return null;
     var hit = null;
     records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).some(function (r) {
+      if (r.id === excludeId) return false;
       if ((r.place || "").trim() !== key) return false;
       var loc = r.inLoc || r.outLoc;
       if (!loc) return false;
@@ -2375,9 +2458,11 @@
         first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
         last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
         (function () {
-          if (!d.sessions.some(function (r) { return r.manual; })) return "";
+          var parts = [];
+          if (d.sessions.some(function (r) { return r.manual; })) parts.push("手入力");
           var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
-          return src ? "手入力（位置は" + src + "）" : "手入力";
+          if (src) parts.push("位置は" + src);
+          return parts.join("・");
         })()
       ]).map(csvCell).join(","));
     });
