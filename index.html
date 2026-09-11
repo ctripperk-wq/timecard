@@ -323,6 +323,23 @@
     background: var(--accent-soft); border-radius: 6px; padding: 2px 8px;
   }
   .sess-dur { font-size: 13px; color: var(--ink-2); }
+  .sess-head-right { display: flex; align-items: center; gap: 9px; }
+  .sess-edit {
+    background: none; border: 0; padding: 2px 0; cursor: pointer;
+    font-size: 12px; color: var(--accent); text-decoration: underline;
+  }
+  .sess-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+  .sess-form .editor-grid { grid-template-columns: 1fr 1fr; }
+  .sess-form label > span {
+    display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .sess-form input {
+    width: 100%; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .sess-del { color: var(--out); border-color: var(--out-line); }
+  .sess-del[data-armed="1"] { background: var(--out); color: var(--on-out); border-color: transparent; }
   .sess-place {
     width: 100%; padding: 9px 11px; border-radius: 9px; margin-bottom: 10px;
     border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 500;
@@ -346,6 +363,24 @@
   .veh-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .veh-recent:empty { display: none; }
   .veh-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+
+  /* ---------- 出発地・帰着地 ---------- */
+  .basewrap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .baseitem > span {
+    display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .seg { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+  .seg button {
+    flex: 1; border: 0; background: none; cursor: pointer; border-radius: 7px;
+    padding: 8px 6px; font-size: 13px; font-weight: 500; color: var(--ink-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .base-note { font-size: 11.5px; color: var(--ink-3); margin: 0 0 12px; line-height: 1.5; }
+  .base-note button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-size: 11.5px; color: var(--accent); text-decoration: underline;
+  }
 
   .odo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .odo label > span {
@@ -473,6 +508,10 @@
   .day-work { font-size: 19px; font-weight: 500; text-align: right; }
   .day-work small { font-size: 11px; color: var(--ink-3); margin-left: 2px; }
   .day-work.open { color: var(--accent); }
+  .day-work .tap {
+    display: block; font-size: 10.5px; color: var(--accent); margin-left: 0;
+    font-family: "Zen Kaku Gothic New", sans-serif; letter-spacing: .02em;
+  }
 
   .editor {
     background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
@@ -650,6 +689,20 @@
           <span class="card-note" id="tripDate"></span>
         </div>
 
+        <div class="basewrap">
+          <div class="baseitem"><span>出発地</span>
+            <div class="seg" id="segFrom">
+              <button data-from="home">自宅</button><button data-from="office">会社</button>
+            </div>
+          </div>
+          <div class="baseitem"><span>帰着地</span>
+            <div class="seg" id="segTo">
+              <button data-to="home">自宅</button><button data-to="office">会社</button>
+            </div>
+          </div>
+        </div>
+        <p class="base-note" id="baseNote"></p>
+
         <div class="veh">
           <label class="veh-label" for="vehicle">きょう使う車両（登録番号）</label>
           <input type="text" id="vehicle" maxlength="30" placeholder="例: 品川 500 あ 12-34" autocomplete="off">
@@ -765,11 +818,13 @@
   var LS_EXPORT = "genba-timecard-export-v1";
   var LS_TRIP = "genba-timecard-trips-v1";
   var LS_MGR = "genba-timecard-manager-v1";
+  var LS_BASE = "genba-timecard-bases-v1";
   var WD = ["日", "月", "火", "水", "木", "金", "土"];
 
   var downloads = null;
   var records = [];
   var trips = {};
+  var bases = {};
   var manager = "";
   var meName = "";
   var lastExportAt = 0;
@@ -783,6 +838,7 @@
   var geoDetail = "";
   var manualLoc = null;
   var manualLocSrc = "";
+  var editSession = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -1164,6 +1220,68 @@
     renderSite();
   }
 
+  /* 「本日の打刻」から1件ずつ直す・消すための入力欄 */
+  function sessionFormHTML(r) {
+    return '<div class="sess-form" data-id="' + r.id + '">' +
+      '<div class="editor-grid">' +
+      '<label><span>出勤</span><input type="time" class="sf-in" value="' + clockOf(r.inAt) + '"></label>' +
+      '<label><span>退勤</span><input type="time" class="sf-out" value="' + (r.outAt ? clockOf(r.outAt) : "") + '"></label>' +
+      "</div>" +
+      '<div class="editor-actions">' +
+      '<button class="btn btn-primary sf-save">時刻を保存</button>' +
+      '<button class="btn sess-del sf-del" data-armed="0">この打刻を削除</button>' +
+      "</div>" +
+      '<p class="editor-note">' + (r.outAt ? "" : "まだ退勤していない打刻です。間違えて押した場合はここで削除できます。") + "</p>" +
+      "</div>";
+  }
+
+  function bindSessionForm(form) {
+    var id = form.getAttribute("data-id");
+    var rec = records.filter(function (x) { return x.id === id; })[0];
+    if (!rec) return;
+    var base = parseKey(rec.date);
+    var at = function (v) {
+      var p = v.split(":");
+      return new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime();
+    };
+
+    form.querySelector(".sf-save").addEventListener("click", function () {
+      var iv = form.querySelector(".sf-in").value;
+      var ov = form.querySelector(".sf-out").value;
+      var patch = {};
+      var inAt = iv ? at(iv) : rec.inAt;
+      patch.inAt = inAt;
+      if (ov) {
+        var outAt = at(ov);
+        if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+        patch.outAt = outAt;
+      } else {
+        patch.outAt = null;
+      }
+      patchRecord(id, patch);
+      editSession = null;
+      render();
+    });
+
+    /* 2回押さないと消えない。指が当たっただけで記録を失わないため。 */
+    var del = form.querySelector(".sf-del");
+    del.addEventListener("click", function () {
+      if (del.getAttribute("data-armed") !== "1") {
+        del.setAttribute("data-armed", "1");
+        del.textContent = "もう一度押すと削除";
+        setTimeout(function () {
+          if (!del.parentNode) return;
+          del.setAttribute("data-armed", "0");
+          del.textContent = "この打刻を削除";
+        }, 4000);
+        return;
+      }
+      deleteRecord(id);
+      editSession = null;
+      render();
+    });
+  }
+
   function renderToday() {
     var now = new Date();
     var today = dayOf(dateKey(now));
@@ -1186,10 +1304,14 @@
       return '<div class="sess">' +
         '<div class="sess-head">' +
         (many ? '<span class="sess-no">' + (i + 1) + "件目</span>" : '<span class="sess-no">現場</span>') +
-        '<span class="sess-dur">拘束 <span class="mono">' + dur + "</span></span></div>" +
+        '<span class="sess-head-right"><span class="sess-dur">拘束 <span class="mono">' + dur + "</span></span>" +
+        '<button class="sess-edit" data-edit="' + r.id + '">' +
+        (editSession === r.id ? "閉じる" : "修正・削除") + "</button></span></div>" +
         '<input class="sess-place" type="text" maxlength="40" data-id="' + r.id +
         '" value="' + esc(r.place || "") + '" placeholder="現場名を入力">' +
-        '<div class="log">' + rows + "</div></div>";
+        '<div class="log">' + rows + "</div>" +
+        (editSession === r.id ? sessionFormHTML(r) : "") +
+        "</div>";
     }).join("");
 
     tb.innerHTML = blocks +
@@ -1199,6 +1321,17 @@
       '<div class="calc-line"><span>休憩</span><strong class="mono">− ' + fmtHM(today.breakMin * 60000) + "</strong></div>" +
       '<div class="calc-total"><span>実働</span><strong class="mono">' + fmtHM(today.workMs) + "</strong></div>" +
       "</div>";
+
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-edit]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-edit");
+        editSession = editSession === id ? null : id;
+        renderToday();
+      });
+    });
+
+    var form = tb.querySelector(".sess-form");
+    if (form) bindSessionForm(form);
 
     Array.prototype.forEach.call(tb.querySelectorAll(".sess-place"), function (inp) {
       inp.addEventListener("change", function () {
@@ -1254,7 +1387,8 @@
       '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
       '<span class="day-span"><span class="mono">' + span + "</span>" +
       (place ? '<span class="day-place">' + esc(place) + "</span>" : "") + "</span>" +
-      '<span class="day-work mono' + (d.open ? " open" : "") + '">' + fmtHM(d.workMs) + "<small>h</small></span>" +
+      '<span class="day-work mono' + (d.open ? " open" : "") + '">' + fmtHM(d.workMs) + "<small>h</small>" +
+      '<span class="tap">' + (openKey === d.key ? "閉じる" : "修正") + "</span></span>" +
       "</button>" + (openKey === d.key ? editorHTML(d) : "");
   }
 
@@ -1389,7 +1523,24 @@
     var close = function () { openKey = null; renderHistory(); if (pendingRender) render(); };
     ed.querySelector("#edCancel").addEventListener("click", close);
 
-    ed.querySelector("#edDelete").addEventListener("click", function () {
+    /* 削除は2回押し。1回目は確認、4秒で元に戻る。 */
+    var arm = function (btn, label, run) {
+      btn.addEventListener("click", function () {
+        if (btn.getAttribute("data-armed") !== "1") {
+          btn.setAttribute("data-armed", "1");
+          btn.textContent = "もう一度押すと削除";
+          setTimeout(function () {
+            if (!btn.parentNode) return;
+            btn.setAttribute("data-armed", "0");
+            btn.textContent = label;
+          }, 4000);
+          return;
+        }
+        run();
+      });
+    };
+
+    arm(ed.querySelector("#edDelete"), "この日をすべて削除", function () {
       var d = dayOf(key);
       if (!d) return close();
       d.sessions.forEach(function (r) { deleteRecord(r.id); });
@@ -1397,7 +1548,7 @@
     });
 
     Array.prototype.forEach.call(ed.querySelectorAll(".ed-del"), function (b) {
-      b.addEventListener("click", function () {
+      arm(b, "この打刻を削除", function () {
         deleteRecord(b.getAttribute("data-id"));
         openKey = null; render();
       });
@@ -1478,7 +1629,7 @@
     var t = trips[date] || {};
     Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
     /* 空の記録は残さない（アルコールチェックがある日は消さない） */
-    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc) delete trips[date];
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to) delete trips[date];
     else trips[date] = t;
     if (!writeLS(LS_TRIP, trips)) {
       $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
@@ -1528,6 +1679,32 @@
     return km;
   }
 
+  /* ---------- 出発地・帰着地（直行直帰／会社経由） ---------- */
+  var BASE_LABEL = { home: "自宅", office: "会社" };
+  /* 会社（広島県廿日市市木材港北）の位置。町名から求めたおおよその位置なので、
+     正確な場所は各自「会社を変更」から地図で直せる。 */
+  var DEFAULT_OFFICE = { lat: 34.350595, lng: 132.3461, acc: 0, approx: true };
+
+  function baseChoice(date) {
+    var t = trips[date] || {};
+    if (t.from || t.to) return { from: t.from || "home", to: t.to || "home" };
+    /* 前回の選び方を引き継ぐ */
+    var prev = Object.keys(trips).filter(function (d) { return d < date && trips[d].from; }).sort().pop();
+    if (prev) return { from: trips[prev].from, to: trips[prev].to || trips[prev].from };
+    return { from: "home", to: "home" };
+  }
+
+  /* 距離の計算には、拠点から最初の現場・最後の現場から拠点までを含める */
+  function routePoints(day) {
+    var pts = gpsPoints(day);
+    if (!pts.length) return [];
+    var c = baseChoice(day.date);
+    var out = pts.slice();
+    if (bases[c.from]) out.unshift({ t: 0, loc: bases[c.from], place: BASE_LABEL[c.from], kind: "発" });
+    if (bases[c.to]) out.push({ t: Infinity, loc: bases[c.to], place: BASE_LABEL[c.to], kind: "着" });
+    return out;
+  }
+
   /* 実測メーターと直線距離の比から、自分の走り方に合った道路距離の係数を求める。
      実測が貯まるほど精度が上がる。データが少ないうちは一般的な 1.3 を使う。 */
   var FACTOR_DEFAULT = 1.3;
@@ -1538,7 +1715,7 @@
       if (!t || t.odoEstimated) return;              /* 推定値は学習に使わない */
       var km = odoDistance(d.date);
       if (km == null || km <= 0) return;
-      var sk = straightKm(gpsPoints(d));
+      var sk = straightKm(routePoints(d));
       if (sk < 0.5) return;                          /* 近すぎる日は比が暴れる */
       var r = km / sk;
       if (r >= 1 && r <= 3) ratios.push(r);          /* 明らかな外れ値は除く */
@@ -1552,7 +1729,7 @@
 
   /* 直線距離から道路距離を推定する */
   function estimatedKm(day) {
-    var sk = straightKm(gpsPoints(day));
+    var sk = straightKm(routePoints(day));
     if (!(sk > 0)) return null;
     return Math.round(sk * roadFactor().factor);
   }
@@ -1708,6 +1885,45 @@
     });
   }
 
+  /* 出発地・帰着地の選択と、拠点の位置登録 */
+  function renderBases(date) {
+    var c = baseChoice(date);
+    ["home", "office"].forEach(function (k) {
+      var fb = $("segFrom").querySelector('[data-from="' + k + '"]');
+      var tb = $("segTo").querySelector('[data-to="' + k + '"]');
+      fb.setAttribute("aria-pressed", c.from === k ? "true" : "false");
+      tb.setAttribute("aria-pressed", c.to === k ? "true" : "false");
+    });
+
+    var missing = [];
+    if (!bases[c.from]) missing.push(c.from);
+    if (c.to !== c.from && !bases[c.to]) missing.push(c.to);
+    var note = $("baseNote");
+    if (missing.length) {
+      note.innerHTML = missing.map(function (k) {
+        return BASE_LABEL[k] + 'の位置が未登録です。<button data-setbase="' + k + '">地図で登録する</button>';
+      }).join("<br>") + "<br>登録すると、拠点から現場までの距離も計算に入ります。";
+    } else {
+      note.innerHTML = (bases.office && bases.office.approx
+        ? "会社は住所（廿日市市木材港北）からのおおよその位置です。正確にするには変更してください。<br>"
+        : "") +
+        "登録済み: " +
+        ["home", "office"].filter(function (k) { return bases[k]; })
+          .map(function (k) { return BASE_LABEL[k]; }).join(" / ") +
+        '　<button data-setbase="home">自宅を変更</button>　<button data-setbase="office">会社を変更</button>';
+    }
+    Array.prototype.forEach.call(note.querySelectorAll("[data-setbase]"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-setbase");
+        openMapPicker(bases[k], function (loc) {
+          bases[k] = loc;
+          writeLS(LS_BASE, bases);
+          render();
+        });
+      });
+    });
+  }
+
   function renderTrip() {
     var today = dateKey(new Date());
     var day = dayOf(today);
@@ -1742,10 +1958,13 @@
       });
     });
 
+    renderBases(today);
+
     var pts = gpsPoints(day);
-    var sk = straightKm(pts);
+    var rpts = routePoints(day);
+    var sk = straightKm(rpts);
     var od = odoDistance(today);
-    var url = routeUrl(pts);
+    var url = routeUrl(rpts);
 
     var est = estimatedKm(day);
     var rf = roadFactor();
@@ -1757,8 +1976,12 @@
         '</span><strong class="big mono">' + od + ' km</strong></div>';
     }
     html += '<div class="gps-line"><span>GPSの立寄地点</span><strong class="mono">' + pts.length + " か所</strong></div>";
-    html += '<div class="gps-line"><span>地点間の直線距離</span><strong class="mono">' +
-      (pts.length > 1 ? sk.toFixed(1) + " km" : "—") + "</strong></div>";
+    var c = baseChoice(today);
+    html += '<div class="gps-line"><span>計算する区間</span><strong>' +
+      (bases[c.from] ? BASE_LABEL[c.from] : "現場") + " → 現場 → " +
+      (bases[c.to] ? BASE_LABEL[c.to] : "現場") + "</strong></div>";
+    html += '<div class="gps-line"><span>直線距離の合計</span><strong class="mono">' +
+      (rpts.length > 1 ? sk.toFixed(1) + " km" : "—") + "</strong></div>";
     if (est != null) {
       html += '<div class="gps-line"><span>ルート推定（× ' + rf.factor + "）</span><strong class=\"mono\">" + est + " km</strong></div>";
     }
@@ -2041,7 +2264,7 @@
     var list = days().filter(function (d) { return !month || d.date.slice(0, 7) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
       "現場数", "現場名", "現場ごとの内訳",
-      "車両", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
+      "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
       "確認者",
       "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
       "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
@@ -2057,6 +2280,7 @@
       var tr = tripOf(d.date);
       var od = odoDistance(d.date);
       var pts = gpsPoints(d);
+      var rpts = routePoints(d);
       if (od != null) totalKm += od;
       lines.push([
         meName, d.date, WD[dt.getDay()],
@@ -2071,11 +2295,13 @@
             (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
         }).join(" ／ "),
         tr.vehicle,
+        BASE_LABEL[baseChoice(d.date).from] || "",
+        BASE_LABEL[baseChoice(d.date).to] || "",
         tr.odoStart == null ? "" : tr.odoStart,
         tr.odoEnd == null ? "" : tr.odoEnd,
         od == null ? "" : od,
         od == null ? "" : (tr.odoEstimated ? "推定（ルート）" : "メーター実測"),
-        pts.length > 1 ? straightKm(pts).toFixed(1) : "",
+        rpts.length > 1 ? straightKm(rpts).toFixed(1) : "",
         pts.length,
         (alcOf(d.date, "pre") || {}).checker || (alcOf(d.date, "post") || {}).checker || ""
       ].concat(alcCells(d.date, "pre")).concat(alcCells(d.date, "post")).concat([
@@ -2156,6 +2382,8 @@
   records = readLS(LS_REC, []);
   trips = readLS(LS_TRIP, {}) || {};
   manager = readLS(LS_MGR, "") || "";
+  bases = readLS(LS_BASE, {}) || {};
+  if (!bases.office) bases.office = DEFAULT_OFFICE;
   meName = readLS(LS_ME, "") || "";
   lastExportAt = readLS(LS_EXPORT, 0) || 0;
   /* 以前の共有版で保存された記録があれば引き継ぐ */
@@ -2215,6 +2443,19 @@
   }
   $("checker").addEventListener("change", commitChecker);
   $("checker").addEventListener("blur", commitChecker);
+
+  Array.prototype.forEach.call($("segFrom").querySelectorAll("[data-from]"), function (b) {
+    b.addEventListener("click", function () {
+      saveTrip(dateKey(new Date()), { from: b.getAttribute("data-from") });
+      render();
+    });
+  });
+  Array.prototype.forEach.call($("segTo").querySelectorAll("[data-to]"), function (b) {
+    b.addEventListener("click", function () {
+      saveTrip(dateKey(new Date()), { to: b.getAttribute("data-to") });
+      render();
+    });
+  });
 
   $("manualBtn").addEventListener("click", function () {
     if (manualOpen) { manualOpen = false; renderManual(); } else { openManual(); }
