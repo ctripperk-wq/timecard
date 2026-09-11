@@ -191,6 +191,39 @@
   .sum-val { font-size: 12px; color: var(--ink-2); }
   .sum-val b { color: var(--ink); font-weight: 500; }
 
+  /* 閉じているときは色を付けて、押せる場所だと分かるようにする */
+  details.card:not([open]) {
+    border-color: transparent;
+    border-left: 4px solid var(--accent);
+    padding-top: 15px; padding-bottom: 15px;
+  }
+  details.card:not([open]) .card-title { color: var(--accent); }
+  details.card:not([open]) .sum-val { color: var(--accent-ink); font-weight: 500; }
+  details.card:not([open]) .sum-val b { color: var(--accent-ink); font-weight: 700; }
+  details.card:not([open]) > summary::after { border-color: var(--accent); }
+
+  details.card#tripCard:not([open]) { background: var(--accent-soft); }
+  details.card#todayCard:not([open]) {
+    background: var(--amber-soft); border-left-color: var(--amber);
+  }
+  details.card#todayCard:not([open]) .card-title,
+  details.card#todayCard:not([open]) .sum-val,
+  details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  details.card#todayCard:not([open]) > summary::after { border-color: var(--amber); }
+
+  :root[data-theme="dark"] details.card:not([open]) .sum-val,
+  :root[data-theme="dark"] details.card:not([open]) .sum-val b { color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) details.card:not([open]) .sum-val,
+    :root:not([data-theme="light"]) details.card:not([open]) .sum-val b { color: var(--accent); }
+  }
+  :root[data-theme="dark"] details.card#todayCard:not([open]) .sum-val,
+  :root[data-theme="dark"] details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) details.card#todayCard:not([open]) .sum-val,
+    :root:not([data-theme="light"]) details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  }
+
   /* ---------- layout ---------- */
   .grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
   /* 画面を切り替えて使うので1カラム。幅が広いときだけ中央に寄せる。 */
