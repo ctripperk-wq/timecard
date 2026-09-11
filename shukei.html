@@ -183,11 +183,12 @@
     <div id="warnBox"></div>
     <div class="tablewrap"><table id="summary"></table></div>
     <div class="actions">
-      <button class="btn btn-primary" id="xlsxBtn">Excelファイルで保存</button>
+      <button class="btn btn-primary" id="xlsxBtn">勤怠をExcelで保存</button>
+      <button class="btn" id="tripXlsxBtn">運転日誌をExcelで保存</button>
       <button class="btn" id="csvBtn">1つのCSVで保存</button>
       <button class="btn" id="clearBtn">読み込みをやり直す</button>
     </div>
-    <p class="note">Excelファイルには「明細」と「月別集計」の2つのシートが入ります。明細はフィルタ付き・日付は日付として入るので、そのまま並べ替えや集計ができます。</p>
+    <p class="note" id="csvNote">勤怠のExcelには「明細」と「月別集計」が入ります。明細は出退勤・拘束・休憩・実働に加え、現場名（日勤／夜勤）・作業内容・作業員（自社／応援／外注）が並びます。運転日誌は横に長くなるため別ファイルです。どちらもフィルタ付きで、日付は日付として入ります。</p>
   </section>
 
   <section class="card" id="blank">
@@ -204,7 +205,7 @@
   var issues = [];      /* 重複など、人が確認すべきこと */
 
   var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
-    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳",
+    "実働(時間換算)", "現場数", "現場名", "現場名(日勤)", "現場名(夜勤)", "現場ごとの内訳",
     "作業内容", "作業員(自社)", "作業員(応援)", "作業員(外注)",
     "車両", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
     "確認者",
@@ -488,24 +489,35 @@
       "タイムカード集計-" + stamp() + ".csv");
   });
 
+  /* 勤怠の明細に出す列（運行記録はここに入れない） */
+  var ATT_COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)",
+    "実働時間", "実働(時間換算)",
+    "現場名(日勤)", "現場名(夜勤)", "作業内容",
+    "作業員(自社)", "作業員(応援)", "作業員(外注)",
+    "現場数", "現場ごとの内訳", "備考"];
+
+  function cellOf(o, c) {
+    if (c === "日付") return { d: o[c] };
+    if (c === "実働(時間換算)") {
+      var h = parseFloat(o[c]);
+      return isNaN(h) ? (o[c] || "") : { n: h };
+    }
+    if (c === "休憩(分)" || c === "現場数") {
+      var n = parseInt(o[c], 10);
+      return isNaN(n) ? (o[c] || "") : { i: n };
+    }
+    /* 旧いCSVには日勤/夜勤の列が無いので、現場名で補う */
+    if (c === "現場名(日勤)" && !(c in o) && !o[c]) return o["現場名"] || "";
+    return o[c] || "";
+  }
+
   $("xlsxBtn").addEventListener("click", function () {
     var list = rebuild();
     var sum = summarize(list);
 
-    var detail = [COLS.slice()];
+    var detail = [ATT_COLS.slice()];
     list.forEach(function (o) {
-      detail.push(COLS.map(function (c) {
-        if (c === "日付") return { d: o[c] };
-        if (c === "実働(時間換算)") {
-          var h = parseFloat(o[c]);
-          return isNaN(h) ? o[c] : { n: h };
-        }
-        if (c === "休憩(分)" || c === "現場数") {
-          var n = parseInt(o[c], 10);
-          return isNaN(n) ? o[c] : { i: n };
-        }
-        return o[c];
-      }));
+      detail.push(ATT_COLS.map(function (c) { return cellOf(o, c); }));
     });
 
     var head2 = ["社員名"].concat(sum.months.map(monthLabel)).concat(["合計(時間)", "合計(日数)"]);
@@ -525,7 +537,13 @@
       { i: sum.people.reduce(function (a, p) { gd += p.days; return a + p.days; }, 0) }
     ]));
 
-    /* 運転日誌シート（車両・メーター・アルコールチェックのどれかが入っている日） */
+    var sheets = [{ name: "明細", rows: detail }, { name: "月別集計", rows: summary }];
+    saveBlob(buildXlsx(sheets), "勤怠集計-" + stamp() + ".xlsx");
+  });
+
+  /* 運転日誌は別ファイル。勤怠と分けて保管できるようにする。 */
+  $("tripXlsxBtn").addEventListener("click", function () {
+    var list = rebuild();
     var SRC = {
       "運転者": "社員名", "自動車登録番号": "車両",
       "運転開始": "出勤", "運転終了": "退勤",
@@ -552,59 +570,15 @@
         return o[src] || "";
       }));
     });
-    if (tripRows.length > 1) {
-      var pad = TRIP_COLS.map(function () { return ""; });
-      pad[0] = "合計";
-      pad[TRIP_COLS.indexOf("運転した距離(km)")] = { n: Math.round(kmTotal * 10) / 10 };
-      tripRows.push(pad);
+    if (tripRows.length <= 1) {
+      $("csvNote").textContent = "運行記録（車両・メーター・アルコールチェック）が入っている日がありません。";
+      return;
     }
-
-    /* 月次業務報告書：社員×月度ごとに1シート。既存の様式に合わせた9列。 */
-    var REPORT_COLS = ["日付", "曜日", "現場名（日勤）", "現場名（夜勤）",
-      "作業員(自社)", "作業員(応援)", "作業員(外注)", "作業内容", "備考"];
-    var reportSheets = [];
-    var byPerson = {};
-    list.forEach(function (o) {
-      var k = o["社員名"] + "" + periodKey(o["日付"]);
-      (byPerson[k] = byPerson[k] || { name: o["社員名"], period: periodKey(o["日付"]), rows: [] }).rows.push(o);
-    });
-    Object.keys(byPerson).sort().forEach(function (k) {
-      var g = byPerson[k];
-      var rows = [
-        ["月次業務報告書", "", "", "", "", "", "", "", ""],
-        ["会社名", "AIRCT", "氏名", g.name, "期間", monthLabel(g.period), "", "", ""],
-        REPORT_COLS.slice()
-      ];
-      /* 期間内の全日を並べる（休みの日も行として残す） */
-      var r = periodRange(g.period);
-      var cur = new Date(r.sy, r.sm - 1, CLOSE_DAY + 1);
-      var end = new Date(r.y, r.m - 1, CLOSE_DAY);
-      var byDate = {};
-      g.rows.forEach(function (o) { byDate[o["日付"]] = o; });
-      while (cur <= end) {
-        var ds = cur.getFullYear() + "-" + pad2(cur.getMonth() + 1) + "-" + pad2(cur.getDate());
-        var o = byDate[ds];
-        rows.push([
-          (cur.getMonth() + 1) + "月" + cur.getDate() + "日",
-          "日月火水木金土".charAt(cur.getDay()),
-          o ? (o["現場名"] || "") : "休み",
-          "",
-          o ? (o["作業員(自社)"] || "") : "",
-          o ? (o["作業員(応援)"] || "") : "",
-          o ? (o["作業員(外注)"] || "") : "",
-          o ? (o["作業内容"] || "") : "",
-          o ? (o["備考"] || "") : ""
-        ]);
-        cur.setDate(cur.getDate() + 1);
-      }
-      var nm = (g.name || "報告書") + " " + g.period.replace("-", "年") + "月度";
-      reportSheets.push({ name: nm.slice(0, 28), rows: rows });
-    });
-
-    var sheets = [{ name: "明細", rows: detail }, { name: "月別集計", rows: summary }];
-    reportSheets.forEach(function (s) { sheets.push(s); });
-    if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
-    saveBlob(buildXlsx(sheets), "タイムカード集計-" + stamp() + ".xlsx");
+    var pad = TRIP_COLS.map(function () { return ""; });
+    pad[0] = "合計";
+    pad[TRIP_COLS.indexOf("運転した距離(km)")] = { n: Math.round(kmTotal * 10) / 10 };
+    tripRows.push(pad);
+    saveBlob(buildXlsx([{ name: "運転日誌", rows: tripRows }]), "運転日誌-" + stamp() + ".xlsx");
   });
 
   /* ---------- xlsx を組み立てる（外部ライブラリなし） ----------
