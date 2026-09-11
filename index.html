@@ -146,12 +146,36 @@
     font-size: 12px; font-weight: 700; letter-spacing: .04em;
   }
   .me-btn:hover { filter: brightness(.97); }
+  .top-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; flex-wrap: wrap; }
+  .view-btn {
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 999px;
+    padding: 4px 13px; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  }
+  .view-btn:hover { filter: brightness(1.08); }
+
+  /* 折りたたみカード */
+  details.card > summary {
+    list-style: none; cursor: pointer; position: relative; padding-right: 26px;
+    margin-bottom: 0;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::after {
+    content: ""; position: absolute; right: 4px; top: 50%;
+    width: 8px; height: 8px; margin-top: -6px;
+    border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+    transform: rotate(45deg); transition: transform .15s ease;
+  }
+  details.card[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
+  details.card[open] > summary { margin-bottom: 14px; }
+  .sum-val { font-size: 12px; color: var(--ink-2); }
+  .sum-val b { color: var(--ink); font-weight: 500; }
 
   /* ---------- layout ---------- */
   .grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+  /* 画面を切り替えて使うので1カラム。幅が広いときだけ中央に寄せる。 */
+  .grid.single { grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 880px) {
-    .grid { grid-template-columns: minmax(0,1fr) minmax(0,1.05fr); }
-    .col-left { position: sticky; top: 20px; }
+    .grid.single { max-width: 620px; margin: 0 auto; }
   }
   .col-left, .col-right { display: grid; gap: 16px; min-width: 0; align-content: start; }
 
@@ -686,7 +710,10 @@
     <div class="now">
       <div class="now-time mono" id="nowTime">--:--<span class="sec">:--</span></div>
       <div class="now-date" id="nowDate">&nbsp;</div>
-      <button class="me-btn" id="meBtn" hidden></button>
+      <div class="top-btns">
+        <button class="me-btn" id="meBtn" hidden></button>
+        <button class="view-btn" id="viewBtn" hidden>記録 ▸</button>
+      </div>
     </div>
   </header>
 
@@ -748,11 +775,11 @@
         <div id="crewOut" class="crew"></div>
       </section>
 
-      <section class="card" id="tripCard" hidden>
-        <div class="card-head">
+      <details class="card" id="tripCard" hidden>
+        <summary class="card-head">
           <h2 class="card-title">運行記録</h2>
-          <span class="card-note" id="tripDate"></span>
-        </div>
+          <span class="sum-val" id="tripSum"></span>
+        </summary>
 
         <div class="basewrap">
           <div class="baseitem"><span>出発地</span>
@@ -788,15 +815,15 @@
         <div class="alc" id="alcBox"></div>
 
         <div class="gps" id="gpsBox"></div>
-      </section>
+      </details>
 
-      <section class="card" id="todayCard" hidden>
-        <div class="card-head">
+      <details class="card" id="todayCard" hidden>
+        <summary class="card-head">
           <h2 class="card-title">本日の打刻</h2>
-          <span class="card-note" id="todayDate"></span>
-        </div>
+          <span class="sum-val" id="todaySum"></span>
+        </summary>
         <div id="todayBody"></div>
-      </section>
+      </details>
     </div>
 
     <div class="col-right">
@@ -904,6 +931,8 @@
   var manualLoc = null;
   var manualLocSrc = "";
   var editSession = null;
+  var manualWho = "me";
+  var view = "punch";   /* punch = 打刻の画面 / log = 記録の画面 */
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -1274,11 +1303,40 @@
     }
   }
 
+  /* 打刻の画面と記録の画面を切り替える（縦に長くしないため） */
+  function renderView() {
+    var showGate = !meName;
+    $("viewBtn").hidden = showGate;
+    $("viewBtn").textContent = view === "punch" ? "記録 ▸" : "◂ 打刻へ";
+    document.querySelector(".col-left").hidden = !showGate && view !== "punch";
+    document.querySelector(".col-right").hidden = showGate || view !== "log";
+    document.querySelector(".grid").classList.add("single");
+  }
+
+  /* 折りたたんだままでも要点が分かるように、見出しに要約を出す */
+  function renderSummaries() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var od = odoDistance(today);
+    var t = tripOf(today);
+    var trip = [];
+    if (t.vehicle) trip.push(t.vehicle);
+    if (od != null) trip.push(od + "km" + (t.odoEstimated ? "（推定）" : ""));
+    var alc = (alcOf(today, "pre") ? 1 : 0) + (alcOf(today, "post") ? 1 : 0);
+    trip.push("チェック " + alc + "/2");
+    $("tripSum").innerHTML = trip.join(" ・ ");
+
+    $("todaySum").innerHTML = day
+      ? day.sessions.length + "件 ・ 実働 <b class='mono'>" + fmtHM(day.workMs) + "</b>"
+      : "まだ打刻なし";
+  }
+
   function render() {
     if (openKey) { pendingRender = true; return; }
     pendingRender = false;
     renderGate();
-    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); }
+    renderView();
+    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); }
     renderHistory();
     renderExport();
     renderManual();
@@ -1423,7 +1481,6 @@
   function renderToday() {
     var now = new Date();
     var today = dayOf(dateKey(now));
-    $("todayDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
     var tb = $("todayBody");
 
     if (!today) {
@@ -2328,7 +2385,6 @@
     var day = dayOf(today);
     var t = tripOf(today);
     var now = new Date();
-    $("tripDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
 
     var carried = carryOverOdo(today);
     t = tripOf(today);
@@ -2835,6 +2891,12 @@
   render();
   if (geoDetail) setGeo("fail", "位置情報 使えません");
   setInterval(tick, 1000);
+
+  $("viewBtn").addEventListener("click", function () {
+    view = view === "punch" ? "log" : "punch";
+    render();
+    window.scrollTo(0, 0);
+  });
 
   $("key").addEventListener("click", punch);
   $("addName").addEventListener("click", saveName);
