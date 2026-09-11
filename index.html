@@ -517,6 +517,49 @@
   }
   .export-note { font-size: 11.5px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.5; }
 
+  /* ---------- 手入力の位置指定 ---------- */
+  .mnloc {
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; margin-top: 12px;
+    background: var(--surface);
+  }
+  .mnloc-state { font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; line-height: 1.5; }
+  .mnloc-state b { color: var(--ink); font-weight: 500; }
+  .mnloc-btns { display: flex; gap: 7px; flex-wrap: wrap; }
+  .mnloc-btns .btn { font-size: 12.5px; padding: 7px 12px; }
+
+  .mapmodal {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center; padding: 14px;
+  }
+  .mapbox {
+    background: var(--surface); border-radius: 14px; width: 100%; max-width: 620px;
+    max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .maphead {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 15px; border-bottom: 1px solid var(--line);
+  }
+  .maphead strong { font-size: 15px; }
+  .mapsearch { display: flex; gap: 7px; padding: 12px 15px 0; }
+  .mapsearch input {
+    flex: 1; padding: 10px 12px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .mapresults { list-style: none; margin: 8px 15px 0; padding: 0; max-height: 130px; overflow-y: auto; }
+  .mapresults:empty { display: none; }
+  .mapresults li {
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
+    background: var(--surface-2); margin-bottom: 5px; line-height: 1.45;
+  }
+  .mapresults li:hover { background: var(--accent-soft); color: var(--accent); }
+  #mapCanvas {
+    flex: 1 1 300px; min-height: 240px; margin: 12px 15px 0;
+    border-radius: 10px; background: var(--surface-2);
+  }
+  .mapnote { font-size: 11.5px; color: var(--ink-3); margin: 8px 15px 0; line-height: 1.5; }
+  .mapfoot { padding: 12px 15px calc(14px + env(safe-area-inset-bottom)); display: flex; gap: 8px; flex-wrap: wrap; }
+
   .empty { text-align: center; color: var(--ink-3); font-size: 13px; padding: 24px 8px; }
 
   .foot {
@@ -655,6 +698,7 @@
             <label><span>休憩（分）</span><input type="number" id="mnBreak" min="0" step="5" value="90"></label>
             <label><span>現場名</span><input type="text" id="mnPlace" maxlength="40" placeholder="任意"></label>
           </div>
+          <div class="mnloc" id="mnLocBox"></div>
           <div class="editor-actions">
             <button class="btn btn-primary" id="mnSave">この内容で追加</button>
             <button class="btn" id="mnClose">閉じる</button>
@@ -688,6 +732,25 @@
       </section>
     </div>
   </div>
+  <div class="mapmodal" id="mapModal" hidden>
+    <div class="mapbox">
+      <div class="maphead">
+        <strong>位置を指定する</strong>
+        <button class="btn" id="mapCancel">やめる</button>
+      </div>
+      <div class="mapsearch">
+        <input type="text" id="mapQuery" placeholder="施設名や町名で検索（例: 名古屋城 / 名古屋市中区栄）">
+        <button class="btn" id="mapSearchBtn">検索</button>
+      </div>
+      <ul class="mapresults" id="mapResults"></ul>
+      <div id="mapCanvas"></div>
+      <p class="mapnote" id="mapNote">検索は施設名や町名で行ってください（「栄3-1-1」のような丁目・番地では出ません）。近くまで移動したら、地図をタップして現場の位置にピンを合わせます。</p>
+      <div class="mapfoot">
+        <button class="btn btn-primary" id="mapUse">この位置にする</button>
+        <span class="card-note mono" id="mapCoord"></span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -718,6 +781,8 @@
   var pendingRender = false;
   var placeTimer = null;
   var geoDetail = "";
+  var manualLoc = null;
+  var manualLocSrc = "";
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -1727,6 +1792,125 @@
     renderAlc();
   }
 
+  /* ---------- 現場名から位置を引き当てる ---------- */
+  /* 過去に同じ現場名で打刻した位置を探す。個人宅など地図検索で出ない現場に効く。 */
+  function placeLocation(name) {
+    var key = (name || "").trim();
+    if (!key) return null;
+    var hit = null;
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).some(function (r) {
+      if ((r.place || "").trim() !== key) return false;
+      var loc = r.inLoc || r.outLoc;
+      if (!loc) return false;
+      hit = { loc: loc, date: r.date };
+      return true;
+    });
+    return hit;
+  }
+
+  /* ---------- 地図から位置を選ぶ ---------- */
+  var leafletReady = false, lmap = null, lmarker = null, mapPick = null, mapOnPick = null;
+
+  function loadLeaflet() {
+    if (leafletReady) return Promise.resolve(true);
+    return new Promise(function (resolve) {
+      var css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+      document.head.appendChild(css);
+      var js = document.createElement("script");
+      js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+      js.onload = function () { leafletReady = true; resolve(true); };
+      js.onerror = function () { resolve(false); };
+      document.head.appendChild(js);
+    });
+  }
+
+  /* 地図の初期位置。過去の打刻があればその近くから始める。 */
+  function defaultCenter() {
+    var r = records.slice().sort(function (a, b) { return b.inAt - a.inAt; })
+      .filter(function (x) { return x.inLoc || x.outLoc; })[0];
+    if (r) { var l = r.inLoc || r.outLoc; return [l.lat, l.lng]; }
+    return [35.681236, 139.767125];
+  }
+
+  function openMapPicker(start, onPick) {
+    mapOnPick = onPick;
+    mapPick = start || null;
+    $("mapModal").hidden = false;
+    $("mapResults").innerHTML = "";
+    $("mapQuery").value = "";
+    setMapCoord();
+    loadLeaflet().then(function (ok) {
+      if (!ok) {
+        $("mapNote").textContent = "地図を読み込めませんでした。通信環境を確認してください。住所検索も使えません。";
+        return;
+      }
+      var center = mapPick ? [mapPick.lat, mapPick.lng] : defaultCenter();
+      if (!lmap) {
+        lmap = L.map("mapCanvas").setView(center, mapPick ? 17 : 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap"
+        }).addTo(lmap);
+        lmap.on("click", function (e) {
+          setPin(e.latlng.lat, e.latlng.lng);
+        });
+      } else {
+        lmap.setView(center, mapPick ? 17 : 13);
+      }
+      setTimeout(function () { lmap.invalidateSize(); }, 80);
+      if (mapPick) setPin(mapPick.lat, mapPick.lng, true);
+    });
+  }
+
+  function setPin(lat, lng, keepView) {
+    mapPick = { lat: +lat.toFixed(6), lng: +lng.toFixed(6), acc: 0 };
+    if (lmarker) lmarker.setLatLng([lat, lng]);
+    else if (window.L) lmarker = L.marker([lat, lng], { draggable: true }).addTo(lmap)
+      .on("dragend", function (e) {
+        var p = e.target.getLatLng();
+        setPin(p.lat, p.lng, true);
+      });
+    if (!keepView && lmap) lmap.panTo([lat, lng]);
+    setMapCoord();
+  }
+  function setMapCoord() {
+    $("mapCoord").textContent = mapPick ? mapPick.lat + ", " + mapPick.lng : "未選択";
+  }
+
+  /* 住所・建物名の検索は OpenStreetMap の Nominatim を使う（キー不要） */
+  function searchPlace() {
+    var q = $("mapQuery").value.trim();
+    if (!q) return;
+    $("mapResults").innerHTML = "<li>検索中…</li>";
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ja&q=" +
+      encodeURIComponent(q);
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (list) {
+        if (!list.length) {
+          $("mapResults").innerHTML = "<li>見つかりませんでした。地図を直接タップして指定してください。</li>";
+          return;
+        }
+        $("mapResults").innerHTML = list.map(function (x, i) {
+          return '<li data-i="' + i + '">' + esc(x.display_name) + "</li>";
+        }).join("");
+        Array.prototype.forEach.call($("mapResults").querySelectorAll("li[data-i]"), function (li) {
+          li.addEventListener("click", function () {
+            var x = list[+li.getAttribute("data-i")];
+            if (lmap) lmap.setView([+x.lat, +x.lon], 17);
+            setPin(+x.lat, +x.lon, true);
+            $("mapResults").innerHTML = "";
+          });
+        });
+      })["catch"](function () {
+        $("mapResults").innerHTML = "<li>検索できませんでした。地図を直接タップして指定してください。</li>";
+      });
+  }
+
+  function closeMapPicker() { $("mapModal").hidden = true; }
+
   /* ---------- 押し忘れの手入力 ---------- */
   function openManual() {
     manualOpen = true;
@@ -1735,11 +1919,63 @@
     $("mnOut").value = "";
     $("mnBreak").value = BREAK_DEFAULT;
     $("mnPlace").value = "";
-    $("mnNote").textContent = "ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の現場は1件ずつ追加してください。位置情報は記録されず、CSVには「手入力」と残ります。";
+    $("mnNote").textContent = "ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の現場は1件ずつ追加してください。CSVには「手入力」と残ります。";
+    manualLoc = null;
+    manualLocSrc = "";
     renderManual();
     $("mnIn").focus();
   }
-  function renderManual() { $("manualPanel").hidden = !manualOpen; }
+  function renderManual() {
+    $("manualPanel").hidden = !manualOpen;
+    if (manualOpen) renderManualLoc();
+  }
+
+  /* 手入力する現場の位置。名前が一致する過去の打刻があれば自動で拾う。 */
+  function renderManualLoc() {
+    var name = $("mnPlace").value.trim();
+    if (!manualLoc && name) {
+      var hit = placeLocation(name);
+      if (hit) {
+        manualLoc = hit.loc;
+        manualLocSrc = "過去の記録（" + hit.date.slice(5).replace("-", "/") + "）から";
+      }
+    }
+    var state = manualLoc
+      ? "位置: <b>" + manualLoc.lat + ", " + manualLoc.lng + "</b><br>" + esc(manualLocSrc)
+      : (name ? "「" + esc(name) + "」の位置は記録にありません。地図から指定できます。" : "現場名を入れると、過去に打刻した位置を自動で探します。");
+    $("mnLocBox").innerHTML = '<div class="mnloc-state">' + state + "</div>" +
+      '<div class="mnloc-btns">' +
+      '<button class="btn" id="mnMapBtn">地図から選ぶ</button>' +
+      '<button class="btn" id="mnHereBtn">現在地を使う</button>' +
+      (manualLoc ? '<button class="btn" id="mnClearLoc">位置を消す</button>' : "") +
+      "</div>";
+
+    $("mnMapBtn").addEventListener("click", function () {
+      openMapPicker(manualLoc, function (loc) {
+        manualLoc = loc;
+        manualLocSrc = "地図で指定";
+        renderManualLoc();
+      });
+    });
+    $("mnHereBtn").addEventListener("click", function () {
+      var b = $("mnHereBtn");
+      b.textContent = "取得中…";
+      b.disabled = true;
+      getLocation().then(function (loc) {
+        b.disabled = false;
+        b.textContent = "現在地を使う";
+        if (!loc) { $("mnNote").textContent = geoDetail || "現在地を取得できませんでした。"; return; }
+        manualLoc = loc;
+        manualLocSrc = "現在地";
+        renderManualLoc();
+      });
+    });
+    if ($("mnClearLoc")) {
+      $("mnClearLoc").addEventListener("click", function () {
+        manualLoc = null; manualLocSrc = ""; renderManualLoc();
+      });
+    }
+  }
 
   function saveManual() {
     var dv = $("mnDate").value;
@@ -1765,9 +2001,10 @@
       outAt: outAt,
       breakMin: Math.max(0, parseInt($("mnBreak").value, 10) || 0),
       place: $("mnPlace").value.trim(),
-      inLoc: null,
-      outLoc: null,
-      manual: true
+      inLoc: manualLoc,
+      outLoc: manualLoc,
+      manual: true,
+      locSrc: manualLoc ? manualLocSrc : ""
     });
     manualOpen = false;
     render();
@@ -1845,7 +2082,11 @@
         [(alcOf(d.date, "pre") || {}).note, (alcOf(d.date, "post") || {}).note].filter(Boolean).join(" / "),
         first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
         last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
-        d.sessions.some(function (r) { return r.manual; }) ? "手入力" : ""
+        (function () {
+          if (!d.sessions.some(function (r) { return r.manual; })) return "";
+          var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
+          return src ? "手入力（位置は" + src + "）" : "手入力";
+        })()
       ]).map(csvCell).join(","));
     });
     var foot = ["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "",
@@ -1980,6 +2221,19 @@
   });
   $("mnClose").addEventListener("click", function () { manualOpen = false; renderManual(); });
   $("mnSave").addEventListener("click", saveManual);
+  $("mnPlace").addEventListener("change", renderManualLoc);
+  $("mnPlace").addEventListener("blur", renderManualLoc);
+
+  $("mapCancel").addEventListener("click", closeMapPicker);
+  $("mapSearchBtn").addEventListener("click", searchPlace);
+  $("mapQuery").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); searchPlace(); }
+  });
+  $("mapUse").addEventListener("click", function () {
+    if (!mapPick) { $("mapNote").textContent = "地図をタップして位置を選んでください。"; return; }
+    if (mapOnPick) mapOnPick(mapPick);
+    closeMapPicker();
+  });
 
   $("exportBtn").addEventListener("click", openExport);
   $("csvClose").addEventListener("click", function () { exportOpen = false; renderExport(); });
