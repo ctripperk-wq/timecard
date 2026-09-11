@@ -382,6 +382,18 @@
     font-size: 11.5px; color: var(--accent); text-decoration: underline;
   }
 
+  /* ---------- 時刻入力（OSの時計ダイアログを使わない） ---------- */
+  .tf { display: flex; align-items: center; gap: 6px; }
+  .tf input {
+    width: 100%; min-width: 0; padding: 10px 6px; border-radius: 9px; text-align: center;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  }
+  .tf b { font-weight: 500; color: var(--ink-3); flex: none; }
+  .tf input::-webkit-outer-spin-button,
+  .tf input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .tf input[type=number] { -moz-appearance: textfield; }
+
   .odo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
   .odo label > span {
     display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
@@ -746,8 +758,8 @@
         <div class="editor" id="manualPanel" hidden style="margin-top:0">
           <div class="editor-grid">
             <label><span>日付</span><input type="date" id="mnDate"></label>
-            <label><span>出勤</span><input type="time" id="mnIn"></label>
-            <label><span>退勤</span><input type="time" id="mnOut"></label>
+            <label><span>出勤</span><span id="mnInWrap"></span></label>
+            <label><span>退勤</span><span id="mnOutWrap"></span></label>
             <label><span>休憩（分）</span><input type="number" id="mnBreak" min="0" step="5" value="90"></label>
             <label><span>現場名</span><input type="text" id="mnPlace" maxlength="40" placeholder="任意"></label>
           </div>
@@ -864,6 +876,30 @@
     });
   }
   function newId() { return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  /* 時刻は「時」「分」の数字入力で受け取る。端末の時計ダイアログは
+     文字サイズを大きくしていると決定ボタンが画面外に出ることがあるため使わない。 */
+  function timeFieldHTML(cls, value) {
+    var p = (value || "").split(":");
+    return '<span class="tf">' +
+      '<input type="number" class="' + cls + '-h" min="0" max="23" step="1" inputmode="numeric" ' +
+      'placeholder="--" aria-label="時" value="' + (p[0] || "") + '">' +
+      "<b>:</b>" +
+      '<input type="number" class="' + cls + '-m" min="0" max="59" step="1" inputmode="numeric" ' +
+      'placeholder="--" aria-label="分" value="' + (p[1] || "") + '"></span>';
+  }
+  function readTimeField(scope, cls) {
+    var hi = scope.querySelector("." + cls + "-h");
+    var mi = scope.querySelector("." + cls + "-m");
+    if (!hi || !mi) return "";
+    var h = hi.value.trim(), m = mi.value.trim();
+    if (h === "" && m === "") return "";
+    if (h === "") h = "0";
+    if (m === "") m = "0";
+    h = Math.max(0, Math.min(23, parseInt(h, 10) || 0));
+    m = Math.max(0, Math.min(59, parseInt(m, 10) || 0));
+    return pad(h) + ":" + pad(m);
+  }
 
   /* ---------- data shaping ---------- */
   function activeRecord() {
@@ -1224,8 +1260,8 @@
   function sessionFormHTML(r) {
     return '<div class="sess-form" data-id="' + r.id + '">' +
       '<div class="editor-grid">' +
-      '<label><span>出勤</span><input type="time" class="sf-in" value="' + clockOf(r.inAt) + '"></label>' +
-      '<label><span>退勤</span><input type="time" class="sf-out" value="' + (r.outAt ? clockOf(r.outAt) : "") + '"></label>' +
+      "<label><span>出勤</span>" + timeFieldHTML("sf-in", clockOf(r.inAt)) + "</label>" +
+      "<label><span>退勤</span>" + timeFieldHTML("sf-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
       "</div>" +
       '<div class="editor-actions">' +
       '<button class="btn btn-primary sf-save">時刻を保存</button>' +
@@ -1246,8 +1282,8 @@
     };
 
     form.querySelector(".sf-save").addEventListener("click", function () {
-      var iv = form.querySelector(".sf-in").value;
-      var ov = form.querySelector(".sf-out").value;
+      var iv = readTimeField(form, "sf-in");
+      var ov = readTimeField(form, "sf-out");
       var patch = {};
       var inAt = iv ? at(iv) : rec.inAt;
       patch.inAt = inAt;
@@ -1469,7 +1505,7 @@
     };
     return '<div class="ed-sess-no" style="margin-top:10px">' + ALC_KEYS[k] + "のアルコールチェック</div>" +
       '<div class="editor-grid" data-alck="' + k + '">' +
-      '<label><span>時刻</span><input type="time" class="ea-time" value="' + (a.at ? clockOf(a.at) : "") + '"></label>' +
+      "<label><span>時刻</span>" + timeFieldHTML("ea-time", a.at ? clockOf(a.at) : "") + "</label>" +
       '<label><span>酒気帯び</span>' + sel("ea-ok", [["", "未記録"], ["1", "なし"], ["0", "あり"]], a.at ? (a.ok ? "1" : "0") : "") + "</label>" +
       '<label><span>検知器</span>' + sel("ea-det", [["1", "使用"], ["0", "不使用"]], a.detector === false ? "0" : "1") + "</label>" +
       '<label><span>確認方法</span>' + sel("ea-face", [["1", "対面"], ["0", "対面以外"]], a.face === false ? "0" : "1") + "</label>" +
@@ -1486,8 +1522,8 @@
         return '<div class="ed-sess" data-id="' + r.id + '">' +
           (many ? '<div class="ed-sess-no">' + (i + 1) + "件目</div>" : "") +
           '<div class="editor-grid">' +
-          '<label><span>出勤</span><input type="time" class="ed-in" value="' + clockOf(r.inAt) + '"></label>' +
-          '<label><span>退勤</span><input type="time" class="ed-out" value="' + (r.outAt ? clockOf(r.outAt) : "") + '"></label>' +
+          "<label><span>出勤</span>" + timeFieldHTML("ed-in", clockOf(r.inAt)) + "</label>" +
+          "<label><span>退勤</span>" + timeFieldHTML("ed-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
           '<label><span>現場名</span><input type="text" class="ed-place" maxlength="40" value="' + esc(r.place || "") + '"></label>' +
           "</div>" +
           (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
@@ -1568,8 +1604,8 @@
         var id = block.getAttribute("data-id");
         var rec = records.filter(function (r) { return r.id === id; })[0];
         if (!rec) return;
-        var inVal = block.querySelector(".ed-in").value;
-        var outVal = block.querySelector(".ed-out").value;
+        var inVal = readTimeField(block, "ed-in");
+        var outVal = readTimeField(block, "ed-out");
         var patch = { breakMin: brk, place: block.querySelector(".ed-place").value.trim() };
         var inAt = inVal ? at(inVal) : rec.inAt;
         patch.inAt = inAt;
@@ -1598,7 +1634,7 @@
       Array.prototype.forEach.call(ed.querySelectorAll("[data-alck]"), function (g) {
         var k = g.getAttribute("data-alck");
         var okv = g.querySelector(".ea-ok").value;
-        var tv = g.querySelector(".ea-time").value;
+        var tv = readTimeField(g, "ea-time");
         if (okv === "" || !tv) { clearAlc(d.date, k); return; }
         var p = tv.split(":");
         recordAlc(d.date, k, {
@@ -2138,15 +2174,16 @@
   function openManual() {
     manualOpen = true;
     $("mnDate").value = dateKey(new Date());
-    $("mnIn").value = "";
-    $("mnOut").value = "";
+    $("mnInWrap").innerHTML = timeFieldHTML("mn-in", "");
+    $("mnOutWrap").innerHTML = timeFieldHTML("mn-out", "");
     $("mnBreak").value = BREAK_DEFAULT;
     $("mnPlace").value = "";
     $("mnNote").textContent = "ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の現場は1件ずつ追加してください。CSVには「手入力」と残ります。";
     manualLoc = null;
     manualLocSrc = "";
     renderManual();
-    $("mnIn").focus();
+    var firstTime = $("mnInWrap").querySelector("input");
+    if (firstTime) firstTime.focus();
   }
   function renderManual() {
     $("manualPanel").hidden = !manualOpen;
@@ -2202,8 +2239,8 @@
 
   function saveManual() {
     var dv = $("mnDate").value;
-    var inVal = $("mnIn").value;
-    var outVal = $("mnOut").value;
+    var inVal = readTimeField($("manualPanel"), "mn-in");
+    var outVal = readTimeField($("manualPanel"), "mn-out");
     if (!dv || !inVal) {
       $("mnNote").textContent = "日付と出勤時刻を入力してください。";
       return;
