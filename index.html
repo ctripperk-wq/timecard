@@ -474,34 +474,34 @@
   .gps-route:hover { filter: brightness(1.06); }
   .gps-route[aria-disabled="true"] { background: var(--surface); color: var(--ink-3); border: 1px solid var(--line); cursor: default; }
 
-  /* ---------- 応援（外注）の記録 ---------- */
-  .help { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
-  .help-label { font-size: 14px; font-weight: 700; display: block; margin-bottom: 8px; }
-  .help-list { display: grid; gap: 6px; margin-bottom: 9px; }
-  .help-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 9px;
-    background: var(--amber-soft); border-radius: 9px; padding: 8px 11px; font-size: 13px;
+  /* ---------- 作業員（自社・応援・外注） ---------- */
+  .crew { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+  .crew-label { font-size: 14px; font-weight: 700; display: block; margin-bottom: 8px; }
+  .crew-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+  .crew-chips:empty { display: none; }
+  .crew-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px;
+    padding: 6px 8px 6px 13px; font-size: 13px; font-weight: 500;
   }
-  .help-row .hr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .help-row .hr-name b { font-weight: 700; }
-  .help-row .hr-name small { display: block; font-size: 11px; color: var(--ink-2); }
-  .help-del {
-    background: none; border: 0; padding: 0; cursor: pointer; flex: none;
-    font-size: 12px; color: var(--out); text-decoration: underline;
+  :root[data-theme="dark"] .crew-chip { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .crew-chip { color: var(--accent); } }
+  .crew-chip[data-kind="help"], .crew-chip[data-kind="out"] { background: var(--amber-soft); color: var(--amber); }
+  .crew-chip small { font-size: 11px; opacity: .8; }
+  .crew-chip button {
+    background: none; border: 0; padding: 0 2px; cursor: pointer; line-height: 1;
+    font-size: 15px; color: inherit; opacity: .6;
   }
-  .help-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 7px; align-items: end; }
-  .help-add label > span {
-    display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
-    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
-  }
-  .help-add input {
-    width: 100%; padding: 9px 10px; border-radius: 9px;
+  .crew-chip button:hover { opacity: 1; }
+  .crew-add { display: flex; gap: 7px; align-items: stretch; }
+  .crew-add input {
+    flex: 1; min-width: 0; padding: 10px 11px; border-radius: 9px;
     border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
   }
-  .help-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .help-recent:empty { display: none; }
-  .help-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
-  @media (max-width: 420px) { .help-add { grid-template-columns: 1fr 1fr; } .help-add .btn { grid-column: 1 / -1; } }
+  .crew-add .btn { flex: none; }
+  .crew-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .crew-recent:empty { display: none; }
+  .crew-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
 
   .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
   .calc-line {
@@ -734,6 +734,20 @@
         <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
       </section>
 
+      <section class="card" id="crewCard" hidden>
+        <div class="card-head">
+          <h2 class="card-title">作業内容と作業員</h2>
+          <span class="card-note" id="crewDate"></span>
+        </div>
+        <label class="field">
+          <span>作業内容</span>
+          <input type="text" id="task" maxlength="120" placeholder="例: 天井開口 機器吊り込み 保温取付" autocomplete="off">
+        </label>
+        <div id="crewOwn" class="crew"></div>
+        <div id="crewHelp" class="crew"></div>
+        <div id="crewOut" class="crew"></div>
+      </section>
+
       <section class="card" id="tripCard" hidden>
         <div class="card-head">
           <h2 class="card-title">運行記録</h2>
@@ -782,7 +796,6 @@
           <span class="card-note" id="todayDate"></span>
         </div>
         <div id="todayBody"></div>
-        <div class="help" id="helpBox"></div>
       </section>
     </div>
 
@@ -1201,6 +1214,7 @@
     var showGate = !meName;
     $("gate").hidden = !showGate;
     $("punchCard").hidden = showGate;
+    $("crewCard").hidden = showGate;
     $("tripCard").hidden = showGate;
     $("todayCard").hidden = showGate;
     $("meBtn").hidden = showGate;
@@ -1240,7 +1254,7 @@
     if (openKey) { pendingRender = true; return; }
     pendingRender = false;
     renderGate();
-    if (meName) { renderPunch(); renderSite(); renderTrip(); renderToday(); renderHelpers(); }
+    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); }
     renderHistory();
     renderExport();
     renderManual();
@@ -1483,10 +1497,10 @@
       if (gp.length > 1) kmLabel = straightKm(gp).toFixed(1) + "km（直線）";
     }
     if (kmLabel) place = (place ? place + " ・ " : "") + kmLabel;
-    var hs = helpersOf(d.date);
-    var helpBadge = hs.length
-      ? '<span class="day-who">応援 ' + hs.length + "名</span>"
-      : "";
+    var crewN = crewOf(d.date, "own").length + crewOf(d.date, "help").length + crewOf(d.date, "out").length;
+    var helpBadge = crewN ? '<span class="day-who">' + crewN + "名</span>" : "";
+    var task = taskOf(d.date);
+    if (task) place = (place ? place + " ・ " : "") + task;
     return '<button class="day" data-key="' + esc(d.key) + '">' +
       '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
       '<span class="day-span">' + helpBadge + '<span class="mono">' + span + "</span>" +
@@ -1661,6 +1675,25 @@
     });
   }
 
+  /* 編集画面の1行入力欄 */
+  function edFieldHTML(id, label, value, ph) {
+    return '<label style="display:block;margin-bottom:9px">' +
+      '<span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">' +
+      esc(label) + "</span>" +
+      '<input type="text" id="' + id + '" maxlength="200" placeholder="' + esc(ph || "") +
+      '" value="' + esc(value || "") + '" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)"></label>';
+  }
+  /* 「会社名, 名前」を空白区切りで並べた文字列を配列に戻す */
+  function parseCrew(text, withCo) {
+    return String(text || "").split(/[\s　]+/).map(function (s) { return s.trim(); })
+      .filter(Boolean).map(function (s) {
+        if (!withCo) return { co: "", name: s };
+        var i = s.search(/[,，、]/);
+        if (i < 0) return { co: "", name: s };
+        return { co: s.slice(0, i).trim(), name: s.slice(i + 1).trim() };
+      }).filter(function (p) { return p.name || p.co; });
+  }
+
   function editorHTML(d) {
     var many = d.sessions.length > 1;
     return '<div class="editor" data-key="' + esc(d.key) + '">' +
@@ -1693,12 +1726,14 @@
       esc((alcOf(d.date, "pre") || {}).note || (alcOf(d.date, "post") || {}).note || "") + '"></label>' +
       "</div>" +
       '<div class="ed-sess">' +
-      '<div class="ed-sess-no">応援に来た方（外注）</div>' +
-      '<label style="display:block"><span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">1行に1名（会社名, 名前）</span>' +
-      '<textarea id="edHelpers" rows="3" placeholder="○○工業, 佐藤 次郎" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:16px">' +
-      esc(helpersOf(d.date).map(function (h) {
-        return h.co ? h.co + ", " + h.name : h.name;
-      }).join("\n")) + "</textarea></label></div>" +
+      '<div class="ed-sess-no">作業内容と作業員</div>' +
+      edFieldHTML("edTask", "作業内容", taskOf(d.date), "例: 天井開口 機器吊り込み") +
+      Object.keys(CREW).map(function (kind) {
+        return edFieldHTML("edCrew_" + kind, CREW[kind].label + "（空白区切り" +
+          (CREW[kind].co ? "。会社名は「会社名, 名前」" : "") + "）",
+          crewOf(d.date, kind).map(crewText).join(" "),
+          CREW[kind].co ? "○○工業, 村上　高川" : "森本　磯谷");
+      }).join("") + "</div>" +
       '<div class="editor-actions">' +
       '<button class="btn btn-primary" id="edSave">保存</button>' +
       '<button class="btn" id="edCancel">閉じる</button>' +
@@ -1774,15 +1809,11 @@
         patchRecord(id, patch);
       });
 
-      /* 応援の方は1行1名。「会社名, 名前」の形で、カンマが無ければ全体を名前とする。 */
-      saveHelpers(d.date, ed.querySelector("#edHelpers").value.split("\n")
-        .map(function (s) { return s.trim(); }).filter(Boolean)
-        .map(function (s) {
-          var i = s.search(/[,，、]/);
-          if (i < 0) return { co: "", name: s };
-          return { co: s.slice(0, i).trim(), name: s.slice(i + 1).trim() };
-        })
-        .filter(function (h) { return h.name || h.co; }));
+      saveTask(d.date, ed.querySelector("#edTask").value.trim());
+      Object.keys(CREW).forEach(function (kind) {
+        saveCrew(d.date, kind,
+          parseCrew(ed.querySelector("#edCrew_" + kind).value, CREW[kind].co));
+      });
 
       var numOf = function (sel) {
         var v = parseInt(ed.querySelector(sel).value, 10);
@@ -1831,9 +1862,8 @@
   function saveTrip(date, patch) {
     var t = trips[date] || {};
     Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
-    /* 空の記録は残さない（アルコールチェックや応援がある日は消さない） */
-    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to && !t.helpers) delete trips[date];
-    else trips[date] = t;
+    trips[date] = t;
+    pruneTrip(date);   /* 中身が空になったときだけ消す（判定は1か所に集約） */
     if (!writeLS(LS_TRIP, trips)) {
       $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
     }
@@ -1951,89 +1981,120 @@
     return url + "&travelmode=driving";
   }
 
-  /* ---------- 応援（外注）の記録 ----------
-     応援の方は打刻しない。自分の記録に「誰が来たか」だけを残す。 */
-  function helpersOf(date) {
+  /* ---------- 作業内容と作業員（自社・応援・外注） ----------
+     応援や外注の方は打刻しない。自分の記録に「誰が入ったか」を残す。 */
+  var CREW = {
+    own: { label: "作業員（自社）", box: "crewOwn", co: false, ph: "例: 森本" },
+    help: { label: "作業員（応援）", box: "crewHelp", co: true, ph: "例: 村上" },
+    out: { label: "作業員（外注）", box: "crewOut", co: true, ph: "例: 高川" }
+  };
+
+  function crewOf(date, kind) {
     var t = trips[date];
-    return (t && t.helpers) ? t.helpers : [];
+    if (!t) return [];
+    /* 以前の版の helpers を応援として引き継ぐ */
+    if (kind === "help" && !t.crew && t.helpers) return t.helpers;
+    return (t.crew && t.crew[kind]) ? t.crew[kind] : [];
   }
-  function saveHelpers(date, list) {
+  function saveCrew(date, kind, list) {
     var t = trips[date] || (trips[date] = {});
-    if (list.length) t.helpers = list;
-    else delete t.helpers;
-    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to && !t.helpers) {
-      delete trips[date];
+    if (!t.crew) {
+      t.crew = { own: [], help: t.helpers || [], out: [] };
+      delete t.helpers;
     }
+    t.crew[kind] = list;
+    if (!t.crew.own.length && !t.crew.help.length && !t.crew.out.length) delete t.crew;
+    pruneTrip(date);
     writeLS(LS_TRIP, trips);
   }
-  function addHelper(date, co, name) {
-    var list = helpersOf(date).slice();
-    var dup = list.some(function (h) { return h.co === co && h.name === name; });
-    if (!dup) list.push({ co: co, name: name });
-    saveHelpers(date, list);
+  function taskOf(date) { var t = trips[date]; return (t && t.task) ? t.task : ""; }
+  function saveTask(date, v) {
+    var t = trips[date] || (trips[date] = {});
+    if (v) t.task = v; else delete t.task;
+    pruneTrip(date);
+    writeLS(LS_TRIP, trips);
   }
-  function helperText(h) { return (h.co ? h.co + " " : "") + h.name; }
-  /* 過去に来てもらった方を、1タップで入れられるように */
-  function recentHelpers() {
+  /* 中身が空になった日の記録は残さない */
+  function pruneTrip(date) {
+    var t = trips[date];
+    if (!t) return;
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc &&
+        !t.from && !t.to && !t.helpers && !t.crew && !t.task) delete trips[date];
+  }
+  function crewText(p) { return (p.co ? p.co + " " : "") + p.name; }
+  function sameCrew(a, b) { return (a.co || "") === (b.co || "") && a.name === b.name; }
+
+  function recentCrew(kind) {
     var seen = {}, out = [];
     Object.keys(trips).sort().reverse().forEach(function (d) {
-      helpersOf(d).forEach(function (h) {
-        var k = helperText(h);
-        if (!seen[k]) { seen[k] = 1; out.push(h); }
+      crewOf(d, kind).forEach(function (p) {
+        var k = crewText(p);
+        if (!seen[k]) { seen[k] = 1; out.push(p); }
       });
     });
-    return out.slice(0, 6);
+    return out.slice(0, 8);
   }
 
-  function renderHelpers() {
+  function renderCrew() {
     var today = dateKey(new Date());
-    var list = helpersOf(today);
-    var box = $("helpBox");
-    box.innerHTML = '<span class="help-label">応援に来た方（外注）</span>' +
-      (list.length
-        ? '<div class="help-list">' + list.map(function (h, i) {
-            return '<div class="help-row"><span class="hr-name"><b>' + esc(h.name) + "</b>" +
-              (h.co ? "<small>" + esc(h.co) + "</small>" : "") + "</span>" +
-              '<button class="help-del" data-hdel="' + i + '">消す</button></div>';
-          }).join("") + "</div>"
-        : '<p class="gps-note" style="margin:0 0 9px">来ていなければ空のままで大丈夫です。</p>') +
-      '<div class="help-add">' +
-      '<label><span>会社名</span><input type="text" id="helpCo" maxlength="30" placeholder="例: ○○工業"></label>' +
-      '<label><span>名前</span><input type="text" id="helpName" maxlength="20" placeholder="例: 佐藤 次郎"></label>' +
-      '<button class="btn" id="helpAdd">追加</button></div>' +
-      '<div class="help-recent" id="helpRecent"></div>';
+    var now = new Date();
+    $("crewDate").textContent = (now.getMonth() + 1) + "/" + now.getDate();
+    if (document.activeElement !== $("task")) $("task").value = taskOf(today);
 
-    var recents = recentHelpers().filter(function (h) {
-      return !list.some(function (x) { return x.co === h.co && x.name === h.name; });
-    });
-    $("helpRecent").innerHTML = recents.length
-      ? '<span class="rc-label">前に来た方</span>' + recents.map(function (h, i) {
-          return '<button class="rc" data-hadd="' + i + '">' + esc(helperText(h)) + "</button>";
-        }).join("")
-      : "";
-    Array.prototype.forEach.call($("helpRecent").querySelectorAll("[data-hadd]"), function (b) {
-      b.addEventListener("click", function () {
-        var h = recents[+b.getAttribute("data-hadd")];
-        addHelper(today, h.co, h.name);
-        render();
+    Object.keys(CREW).forEach(function (kind) {
+      var spec = CREW[kind];
+      var list = crewOf(today, kind);
+      var box = $(spec.box);
+      box.innerHTML = '<span class="crew-label">' + spec.label + "</span>" +
+        '<div class="crew-chips">' + list.map(function (p, i) {
+          return '<span class="crew-chip" data-kind="' + kind + '">' +
+            (p.co ? "<small>" + esc(p.co) + "</small> " : "") + esc(p.name) +
+            '<button data-del="' + i + '" aria-label="消す">×</button></span>';
+        }).join("") + "</div>" +
+        '<div class="crew-add">' +
+        (spec.co ? '<input type="text" class="ci-co" maxlength="30" placeholder="会社名（任意）">' : "") +
+        '<input type="text" class="ci-name" maxlength="20" placeholder="' + spec.ph + '">' +
+        '<button class="btn ci-add">追加</button></div>' +
+        '<div class="crew-recent"></div>';
+
+      var recents = recentCrew(kind).filter(function (p) {
+        return !list.some(function (x) { return sameCrew(x, p); });
       });
-    });
-    Array.prototype.forEach.call(box.querySelectorAll("[data-hdel]"), function (b) {
-      b.addEventListener("click", function () {
-        var next = helpersOf(today).slice();
-        next.splice(+b.getAttribute("data-hdel"), 1);
-        saveHelpers(today, next);
-        render();
+      var rbox = box.querySelector(".crew-recent");
+      rbox.innerHTML = recents.length
+        ? '<span class="rc-label">よく一緒の方</span>' + recents.map(function (p, i) {
+            return '<button class="rc" data-add="' + i + '">' + esc(crewText(p)) + "</button>";
+          }).join("")
+        : "";
+      Array.prototype.forEach.call(rbox.querySelectorAll("[data-add]"), function (b) {
+        b.addEventListener("click", function () {
+          saveCrew(today, kind, list.concat([recents[+b.getAttribute("data-add")]]));
+          render();
+        });
       });
-    });
-    $("helpAdd").addEventListener("click", function () {
-      var name = $("helpName").value.trim();
-      if (!name) { $("helpName").focus(); return; }
-      addHelper(today, $("helpCo").value.trim(), name);
-      render();
-    });
-    $("helpName").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") { e.preventDefault(); $("helpAdd").click(); }
+      Array.prototype.forEach.call(box.querySelectorAll("[data-del]"), function (b) {
+        b.addEventListener("click", function () {
+          var next = list.slice();
+          next.splice(+b.getAttribute("data-del"), 1);
+          saveCrew(today, kind, next);
+          render();
+        });
+      });
+      var addOne = function () {
+        var nameEl = box.querySelector(".ci-name");
+        var name = nameEl.value.trim();
+        if (!name) { nameEl.focus(); return; }
+        var coEl = box.querySelector(".ci-co");
+        var p = { co: coEl ? coEl.value.trim() : "", name: name };
+        if (!list.some(function (x) { return sameCrew(x, p); })) {
+          saveCrew(today, kind, list.concat([p]));
+        }
+        render();
+      };
+      box.querySelector(".ci-add").addEventListener("click", addOne);
+      box.querySelector(".ci-name").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); addOne(); }
+      });
     });
   }
 
@@ -2554,7 +2615,8 @@
   function buildCsv(month) {
     var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
-      "現場数", "現場名", "現場ごとの内訳", "応援人数", "応援（会社名・名前）",
+      "現場数", "現場名", "現場ごとの内訳",
+      "作業内容", "作業員(自社)", "作業員(応援)", "作業員(外注)",
       "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
       "確認者",
       "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
@@ -2585,8 +2647,10 @@
             " " + (r.place || "現場名なし") +
             (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
         }).join(" ／ "),
-        helpersOf(d.date).length || "",
-        helpersOf(d.date).map(helperText).join(" ／ "),
+        taskOf(d.date),
+        crewOf(d.date, "own").map(crewText).join(" "),
+        crewOf(d.date, "help").map(crewText).join(" "),
+        crewOf(d.date, "out").map(crewText).join(" "),
         tr.vehicle,
         BASE_LABEL[baseChoice(d.date).from] || "",
         BASE_LABEL[baseChoice(d.date).to] || "",
@@ -2714,6 +2778,13 @@
     placeTimer = setTimeout(commitPlace, 500);
   });
   $("place").addEventListener("blur", commitPlace);
+
+  function commitTask() {
+    saveTask(dateKey(new Date()), $("task").value.trim());
+    renderHistory();
+  }
+  $("task").addEventListener("change", commitTask);
+  $("task").addEventListener("blur", commitTask);
 
   function commitTrip() {
     var today = dateKey(new Date());

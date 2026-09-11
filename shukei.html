@@ -204,7 +204,8 @@
   var issues = [];      /* 重複など、人が確認すべきこと */
 
   var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
-    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳", "応援人数", "応援（会社名・名前）",
+    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳",
+    "作業内容", "作業員(自社)", "作業員(応援)", "作業員(外注)",
     "車両", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
     "確認者",
     "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
@@ -325,6 +326,13 @@
     if (d > CLOSE_DAY) { m += 1; if (m > 12) { m = 1; y += 1; } }
     return y + "-" + pad2(m);
   }
+  function periodRange(key) {
+    var p = key.split("-");
+    var y = +p[0], m = +p[1];
+    var sy = y, sm = m - 1;
+    if (sm < 1) { sm = 12; sy = y - 1; }
+    return { sy: sy, sm: sm, y: y, m: m };
+  }
   function monthLabel(key) {
     var p = key.split("-");
     var y = +p[0], m = +p[1];
@@ -357,11 +365,7 @@
       stat("対象月度", sum.months.length, "か月") +
       stat("延べ出勤", list.length, "日") +
       stat("実働合計", fmtH(totalHours), "時間") +
-      (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "") +
-      (function () {
-        var n = list.reduce(function (a, o) { return a + (parseInt(o["応援人数"], 10) || 0); }, 0);
-        return n > 0 ? stat("延べ応援", n, "名") : "";
-      })();
+      (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "");
 
     /* 法定記録として欠けている日を洗い出す */
     var lacking = list.map(function (o) {
@@ -555,7 +559,50 @@
       tripRows.push(pad);
     }
 
+    /* 月次業務報告書：社員×月度ごとに1シート。既存の様式に合わせた9列。 */
+    var REPORT_COLS = ["日付", "曜日", "現場名（日勤）", "現場名（夜勤）",
+      "作業員(自社)", "作業員(応援)", "作業員(外注)", "作業内容", "備考"];
+    var reportSheets = [];
+    var byPerson = {};
+    list.forEach(function (o) {
+      var k = o["社員名"] + "" + periodKey(o["日付"]);
+      (byPerson[k] = byPerson[k] || { name: o["社員名"], period: periodKey(o["日付"]), rows: [] }).rows.push(o);
+    });
+    Object.keys(byPerson).sort().forEach(function (k) {
+      var g = byPerson[k];
+      var rows = [
+        ["月次業務報告書", "", "", "", "", "", "", "", ""],
+        ["会社名", "AIRCT", "氏名", g.name, "期間", monthLabel(g.period), "", "", ""],
+        REPORT_COLS.slice()
+      ];
+      /* 期間内の全日を並べる（休みの日も行として残す） */
+      var r = periodRange(g.period);
+      var cur = new Date(r.sy, r.sm - 1, CLOSE_DAY + 1);
+      var end = new Date(r.y, r.m - 1, CLOSE_DAY);
+      var byDate = {};
+      g.rows.forEach(function (o) { byDate[o["日付"]] = o; });
+      while (cur <= end) {
+        var ds = cur.getFullYear() + "-" + pad2(cur.getMonth() + 1) + "-" + pad2(cur.getDate());
+        var o = byDate[ds];
+        rows.push([
+          (cur.getMonth() + 1) + "月" + cur.getDate() + "日",
+          "日月火水木金土".charAt(cur.getDay()),
+          o ? (o["現場名"] || "") : "休み",
+          "",
+          o ? (o["作業員(自社)"] || "") : "",
+          o ? (o["作業員(応援)"] || "") : "",
+          o ? (o["作業員(外注)"] || "") : "",
+          o ? (o["作業内容"] || "") : "",
+          o ? (o["備考"] || "") : ""
+        ]);
+        cur.setDate(cur.getDate() + 1);
+      }
+      var nm = (g.name || "報告書") + " " + g.period.replace("-", "年") + "月度";
+      reportSheets.push({ name: nm.slice(0, 28), rows: rows });
+    });
+
     var sheets = [{ name: "明細", rows: detail }, { name: "月別集計", rows: summary }];
+    reportSheets.forEach(function (s) { sheets.push(s); });
     if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
     saveBlob(buildXlsx(sheets), "タイムカード集計-" + stamp() + ".xlsx");
   });
