@@ -474,6 +474,35 @@
   .gps-route:hover { filter: brightness(1.06); }
   .gps-route[aria-disabled="true"] { background: var(--surface); color: var(--ink-3); border: 1px solid var(--line); cursor: default; }
 
+  /* ---------- 応援（外注）の記録 ---------- */
+  .help { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .help-label { font-size: 14px; font-weight: 700; display: block; margin-bottom: 8px; }
+  .help-list { display: grid; gap: 6px; margin-bottom: 9px; }
+  .help-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 9px;
+    background: var(--amber-soft); border-radius: 9px; padding: 8px 11px; font-size: 13px;
+  }
+  .help-row .hr-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .help-row .hr-name b { font-weight: 700; }
+  .help-row .hr-name small { display: block; font-size: 11px; color: var(--ink-2); }
+  .help-del {
+    background: none; border: 0; padding: 0; cursor: pointer; flex: none;
+    font-size: 12px; color: var(--out); text-decoration: underline;
+  }
+  .help-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 7px; align-items: end; }
+  .help-add label > span {
+    display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .help-add input {
+    width: 100%; padding: 9px 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .help-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .help-recent:empty { display: none; }
+  .help-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+  @media (max-width: 420px) { .help-add { grid-template-columns: 1fr 1fr; } .help-add .btn { grid-column: 1 / -1; } }
+
   .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
   .calc-line {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -521,6 +550,11 @@
   .day-place {
     display: block; font-size: 11.5px; color: var(--ink-3);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .day-who {
+    display: inline-block; font-size: 10.5px; font-weight: 700; margin-right: 6px;
+    background: var(--amber-soft); color: var(--amber); border-radius: 5px; padding: 1px 7px;
+    vertical-align: 1px;
   }
   .day-work { font-size: 19px; font-weight: 500; text-align: right; }
   .day-work small { font-size: 11px; color: var(--ink-3); margin-left: 2px; }
@@ -748,6 +782,7 @@
           <span class="card-note" id="todayDate"></span>
         </div>
         <div id="todayBody"></div>
+        <div class="help" id="helpBox"></div>
       </section>
     </div>
 
@@ -1205,7 +1240,7 @@
     if (openKey) { pendingRender = true; return; }
     pendingRender = false;
     renderGate();
-    if (meName) { renderPunch(); renderSite(); renderTrip(); renderToday(); }
+    if (meName) { renderPunch(); renderSite(); renderTrip(); renderToday(); renderHelpers(); }
     renderHistory();
     renderExport();
     renderManual();
@@ -1448,9 +1483,13 @@
       if (gp.length > 1) kmLabel = straightKm(gp).toFixed(1) + "km（直線）";
     }
     if (kmLabel) place = (place ? place + " ・ " : "") + kmLabel;
+    var hs = helpersOf(d.date);
+    var helpBadge = hs.length
+      ? '<span class="day-who">応援 ' + hs.length + "名</span>"
+      : "";
     return '<button class="day" data-key="' + esc(d.key) + '">' +
       '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
-      '<span class="day-span"><span class="mono">' + span + "</span>" +
+      '<span class="day-span">' + helpBadge + '<span class="mono">' + span + "</span>" +
       (place ? '<span class="day-place">' + esc(place) + "</span>" : "") + "</span>" +
       '<span class="day-work mono' + (d.open ? " open" : "") + '">' + fmtHM(d.workMs) + "<small>h</small>" +
       '<span class="tap">' + (openKey === d.key ? "閉じる" : "修正") + "</span></span>" +
@@ -1653,6 +1692,13 @@
       '<input type="text" id="edAlcNote" maxlength="60" value="' +
       esc((alcOf(d.date, "pre") || {}).note || (alcOf(d.date, "post") || {}).note || "") + '"></label>' +
       "</div>" +
+      '<div class="ed-sess">' +
+      '<div class="ed-sess-no">応援に来た方（外注）</div>' +
+      '<label style="display:block"><span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">1行に1名（会社名, 名前）</span>' +
+      '<textarea id="edHelpers" rows="3" placeholder="○○工業, 佐藤 次郎" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font:inherit;font-size:16px">' +
+      esc(helpersOf(d.date).map(function (h) {
+        return h.co ? h.co + ", " + h.name : h.name;
+      }).join("\n")) + "</textarea></label></div>" +
       '<div class="editor-actions">' +
       '<button class="btn btn-primary" id="edSave">保存</button>' +
       '<button class="btn" id="edCancel">閉じる</button>' +
@@ -1728,6 +1774,16 @@
         patchRecord(id, patch);
       });
 
+      /* 応援の方は1行1名。「会社名, 名前」の形で、カンマが無ければ全体を名前とする。 */
+      saveHelpers(d.date, ed.querySelector("#edHelpers").value.split("\n")
+        .map(function (s) { return s.trim(); }).filter(Boolean)
+        .map(function (s) {
+          var i = s.search(/[,，、]/);
+          if (i < 0) return { co: "", name: s };
+          return { co: s.slice(0, i).trim(), name: s.slice(i + 1).trim() };
+        })
+        .filter(function (h) { return h.name || h.co; }));
+
       var numOf = function (sel) {
         var v = parseInt(ed.querySelector(sel).value, 10);
         return isNaN(v) ? null : v;
@@ -1775,8 +1831,8 @@
   function saveTrip(date, patch) {
     var t = trips[date] || {};
     Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
-    /* 空の記録は残さない（アルコールチェックがある日は消さない） */
-    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to) delete trips[date];
+    /* 空の記録は残さない（アルコールチェックや応援がある日は消さない） */
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to && !t.helpers) delete trips[date];
     else trips[date] = t;
     if (!writeLS(LS_TRIP, trips)) {
       $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
@@ -1893,6 +1949,92 @@
       "&destination=" + q(pts[pts.length - 1]);
     if (mid.length) url += "&waypoints=" + mid.map(q).join("|");
     return url + "&travelmode=driving";
+  }
+
+  /* ---------- 応援（外注）の記録 ----------
+     応援の方は打刻しない。自分の記録に「誰が来たか」だけを残す。 */
+  function helpersOf(date) {
+    var t = trips[date];
+    return (t && t.helpers) ? t.helpers : [];
+  }
+  function saveHelpers(date, list) {
+    var t = trips[date] || (trips[date] = {});
+    if (list.length) t.helpers = list;
+    else delete t.helpers;
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc && !t.from && !t.to && !t.helpers) {
+      delete trips[date];
+    }
+    writeLS(LS_TRIP, trips);
+  }
+  function addHelper(date, co, name) {
+    var list = helpersOf(date).slice();
+    var dup = list.some(function (h) { return h.co === co && h.name === name; });
+    if (!dup) list.push({ co: co, name: name });
+    saveHelpers(date, list);
+  }
+  function helperText(h) { return (h.co ? h.co + " " : "") + h.name; }
+  /* 過去に来てもらった方を、1タップで入れられるように */
+  function recentHelpers() {
+    var seen = {}, out = [];
+    Object.keys(trips).sort().reverse().forEach(function (d) {
+      helpersOf(d).forEach(function (h) {
+        var k = helperText(h);
+        if (!seen[k]) { seen[k] = 1; out.push(h); }
+      });
+    });
+    return out.slice(0, 6);
+  }
+
+  function renderHelpers() {
+    var today = dateKey(new Date());
+    var list = helpersOf(today);
+    var box = $("helpBox");
+    box.innerHTML = '<span class="help-label">応援に来た方（外注）</span>' +
+      (list.length
+        ? '<div class="help-list">' + list.map(function (h, i) {
+            return '<div class="help-row"><span class="hr-name"><b>' + esc(h.name) + "</b>" +
+              (h.co ? "<small>" + esc(h.co) + "</small>" : "") + "</span>" +
+              '<button class="help-del" data-hdel="' + i + '">消す</button></div>';
+          }).join("") + "</div>"
+        : '<p class="gps-note" style="margin:0 0 9px">来ていなければ空のままで大丈夫です。</p>') +
+      '<div class="help-add">' +
+      '<label><span>会社名</span><input type="text" id="helpCo" maxlength="30" placeholder="例: ○○工業"></label>' +
+      '<label><span>名前</span><input type="text" id="helpName" maxlength="20" placeholder="例: 佐藤 次郎"></label>' +
+      '<button class="btn" id="helpAdd">追加</button></div>' +
+      '<div class="help-recent" id="helpRecent"></div>';
+
+    var recents = recentHelpers().filter(function (h) {
+      return !list.some(function (x) { return x.co === h.co && x.name === h.name; });
+    });
+    $("helpRecent").innerHTML = recents.length
+      ? '<span class="rc-label">前に来た方</span>' + recents.map(function (h, i) {
+          return '<button class="rc" data-hadd="' + i + '">' + esc(helperText(h)) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call($("helpRecent").querySelectorAll("[data-hadd]"), function (b) {
+      b.addEventListener("click", function () {
+        var h = recents[+b.getAttribute("data-hadd")];
+        addHelper(today, h.co, h.name);
+        render();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-hdel]"), function (b) {
+      b.addEventListener("click", function () {
+        var next = helpersOf(today).slice();
+        next.splice(+b.getAttribute("data-hdel"), 1);
+        saveHelpers(today, next);
+        render();
+      });
+    });
+    $("helpAdd").addEventListener("click", function () {
+      var name = $("helpName").value.trim();
+      if (!name) { $("helpName").focus(); return; }
+      addHelper(today, $("helpCo").value.trim(), name);
+      render();
+    });
+    $("helpName").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); $("helpAdd").click(); }
+    });
   }
 
   /* ---------- アルコールチェック（道路交通法施行規則 第9条の10） ---------- */
@@ -2412,7 +2554,7 @@
   function buildCsv(month) {
     var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
-      "現場数", "現場名", "現場ごとの内訳",
+      "現場数", "現場名", "現場ごとの内訳", "応援人数", "応援（会社名・名前）",
       "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
       "確認者",
       "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
@@ -2443,6 +2585,8 @@
             " " + (r.place || "現場名なし") +
             (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
         }).join(" ／ "),
+        helpersOf(d.date).length || "",
+        helpersOf(d.date).map(helperText).join(" ／ "),
         tr.vehicle,
         BASE_LABEL[baseChoice(d.date).from] || "",
         BASE_LABEL[baseChoice(d.date).to] || "",
@@ -2466,9 +2610,14 @@
         })()
       ]).map(csvCell).join(","));
     });
-    var foot = ["", "合計", "", "", "", "", "", fmtHM(total), decHours(total), "", list.length + "日", "",
-      "", "", "", totalKm || "", "", ""];
-    while (foot.length < head.length) foot.push("");
+    /* 合計行は列名で位置を決める（列を足しても崩れないように） */
+    var foot = head.map(function () { return ""; });
+    var put = function (col, v) { var i = head.indexOf(col); if (i >= 0) foot[i] = v; };
+    put("日付", "合計");
+    put("曜日", list.length + "日");
+    put("実働時間", fmtHM(total));
+    put("実働(時間換算)", decHours(total));
+    if (totalKm) put("走行距離(km)", totalKm);
     lines.push(foot.map(csvCell).join(","));
     return "﻿" + lines.join("\r\n") + "\r\n";
   }

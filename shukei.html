@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -204,7 +204,7 @@
   var issues = [];      /* 重複など、人が確認すべきこと */
 
   var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
-    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳",
+    "実働(時間換算)", "現場数", "現場名", "現場ごとの内訳", "応援人数", "応援（会社名・名前）",
     "車両", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
     "確認者",
     "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
@@ -357,7 +357,11 @@
       stat("対象月度", sum.months.length, "か月") +
       stat("延べ出勤", list.length, "日") +
       stat("実働合計", fmtH(totalHours), "時間") +
-      (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "");
+      (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "") +
+      (function () {
+        var n = list.reduce(function (a, o) { return a + (parseInt(o["応援人数"], 10) || 0); }, 0);
+        return n > 0 ? stat("延べ応援", n, "名") : "";
+      })();
 
     /* 法定記録として欠けている日を洗い出す */
     var lacking = list.map(function (o) {
