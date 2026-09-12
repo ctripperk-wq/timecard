@@ -1,0 +1,3117 @@
+﻿<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EDEFF4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0D1016" media="(prefers-color-scheme: dark)">
+<meta name="description" content="出勤・退勤を押すだけで、休憩を差し引いた実働時間を自動計算する営業向けタイムカード。訪問先と運行記録も残せます。">
+<style>
+  html { color-scheme: light dark; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>営業タイムカード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #EDEFF4;
+    --surface: #FFFFFF;
+    --surface-2: #F5F6FA;
+    --line: #D8DCE6;
+    --line-strong: #C2C8D6;
+    --ink: #111726;
+    --ink-2: #5A6377;
+    --ink-3: #89909E;
+    --accent: #2A4E8F;
+    --accent-ink: #1F3C70;
+    --accent-soft: #DEE6F5;
+    --accent-line: #B2C4E4;
+    --on-accent: #FFFFFF;
+    --out: #AC432A;
+    --out-ink: #7C2D1B;
+    --out-soft: #F4E1DA;
+    --out-line: #E0B3A5;
+    --on-out: #FFFFFF;
+    --amber: #8A6212;
+    --amber-soft: #F7EBD2;
+    --shadow-card: 0 1px 0 rgba(16,30,27,.04), 0 10px 28px -18px rgba(16,30,27,.45);
+    --shadow-key: 0 4px 0 var(--accent-ink), 0 12px 20px -12px rgba(16,30,27,.55);
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0D1016;
+      --surface: #141D1A;
+      --surface-2: #1B2523;
+      --line: #263330;
+      --line-strong: #35443F;
+      --ink: #E5EEEB;
+      --ink-2: #9BAEA9;
+      --ink-3: #6B7E79;
+      --accent: #7AA6F0;
+      --accent-ink: #35538C;
+      --accent-soft: #16213A;
+      --accent-line: #2F4670;
+      --on-accent: #04140F;
+      --out: #E08461;
+      --out-ink: #8A4527;
+      --out-soft: #331C14;
+      --out-line: #5C382C;
+      --on-out: #1B0B05;
+      --amber: #D9A441;
+      --amber-soft: #2E2413;
+      --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+      --shadow-key: 0 4px 0 var(--accent-ink), 0 14px 22px -14px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0D1016;
+    --surface: #141D1A;
+    --surface-2: #1B2523;
+    --line: #263330;
+    --line-strong: #35443F;
+    --ink: #E5EEEB;
+    --ink-2: #9BAEA9;
+    --ink-3: #6B7E79;
+    --accent: #7AA6F0;
+    --accent-ink: #35538C;
+    --accent-soft: #16213A;
+    --accent-line: #2F4670;
+    --on-accent: #04140F;
+    --out: #E08461;
+    --out-ink: #8A4527;
+    --out-soft: #331C14;
+    --out-line: #5C382C;
+    --on-out: #1B0B05;
+    --amber: #D9A441;
+    --amber-soft: #2E2413;
+    --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 14px 30px -20px rgba(0,0,0,.9);
+    --shadow-key: 0 4px 0 var(--accent-ink), 0 14px 22px -14px rgba(0,0,0,.8);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  /* 端末側の文字サイズ設定で勝手に拡大されないようにする */
+  html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { touch-action: manipulation; }
+  /* iOS は 16px 未満の入力欄でページを自動ズームするため下限を固定 */
+  input, textarea, select { font-size: 16px; -webkit-appearance: none; appearance: none; border-radius: 0; }
+  a { color: var(--accent); }
+
+  .wrap {
+    max-width: 1000px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+             calc(64px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  }
+
+  /* ---------- header ---------- */
+  .top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; padding-bottom: 14px; margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { display: block; flex: none; }
+  .brand-eyebrow {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3); line-height: 1;
+  }
+  .brand-name { font-weight: 700; font-size: 17px; letter-spacing: .04em; line-height: 1.3; white-space: nowrap; }
+  /* 画面が狭いときはヘッダーを詰めて、記録ボタンの分の高さを取り戻す */
+  @media (max-width: 430px) {
+    .top { padding-bottom: 11px; margin-bottom: 14px; }
+    .brand-eyebrow { display: none; }
+    .brand-name { font-size: 15px; }
+    .brand svg { width: 26px; height: 26px; }
+    .now-time { font-size: 22px; }
+    .now-time .sec { font-size: 13px; }
+    .now-date { font-size: 11px; }
+  }
+  .now { text-align: right; }
+  .now-time { font-size: 26px; font-weight: 500; letter-spacing: .01em; line-height: 1.1; }
+  .now-time .sec { font-size: 15px; color: var(--ink-3); }
+  .now-date { font-size: 12px; color: var(--ink-2); letter-spacing: .04em; }
+  .me-btn {
+    margin-top: 4px; background: var(--accent-soft); color: var(--accent);
+    border: 0; border-radius: 999px; padding: 3px 11px; cursor: pointer;
+    font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  }
+  .me-btn:hover { filter: brightness(.97); }
+  .top-btns {
+    display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    margin-top: 7px; flex-wrap: wrap;
+  }
+  .view-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: var(--on-accent); border: 0; border-radius: 11px;
+    padding: 0 18px; min-height: 44px; cursor: pointer;
+    font-size: 15px; font-weight: 700; letter-spacing: .06em;
+    box-shadow: 0 2px 0 var(--accent-ink), 0 6px 14px -8px rgba(16,30,27,.6);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .view-btn:hover { filter: brightness(1.06); }
+  .view-btn:active { transform: translateY(2px); box-shadow: 0 0 0 var(--accent-ink); }
+  @media (prefers-reduced-motion: reduce) {
+    .view-btn { transition: none; }
+    .view-btn:active { transform: none; }
+  }
+
+  /* 折りたたみカード */
+  details.card > summary {
+    list-style: none; cursor: pointer; position: relative; padding-right: 26px;
+    margin-bottom: 0;
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary::after {
+    content: ""; position: absolute; right: 4px; top: 50%;
+    width: 8px; height: 8px; margin-top: -6px;
+    border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
+    transform: rotate(45deg); transition: transform .15s ease;
+  }
+  details.card[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
+  details.card[open] > summary { margin-bottom: 14px; }
+  .sum-val { font-size: 12px; color: var(--ink-2); }
+  .sum-val b { color: var(--ink); font-weight: 500; }
+
+  /* 閉じているときは色を付けて、押せる場所だと分かるようにする */
+  details.card:not([open]) {
+    border-color: transparent;
+    border-left: 4px solid var(--accent);
+    padding-top: 15px; padding-bottom: 15px;
+  }
+  details.card:not([open]) .card-title { color: var(--accent); }
+  details.card:not([open]) .sum-val { color: var(--accent-ink); font-weight: 500; }
+  details.card:not([open]) .sum-val b { color: var(--accent-ink); font-weight: 700; }
+  details.card:not([open]) > summary::after { border-color: var(--accent); }
+
+  details.card#tripCard:not([open]) { background: var(--accent-soft); }
+  details.card#todayCard:not([open]) {
+    background: var(--amber-soft); border-left-color: var(--amber);
+  }
+  details.card#todayCard:not([open]) .card-title,
+  details.card#todayCard:not([open]) .sum-val,
+  details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  details.card#todayCard:not([open]) > summary::after { border-color: var(--amber); }
+
+  :root[data-theme="dark"] details.card:not([open]) .sum-val,
+  :root[data-theme="dark"] details.card:not([open]) .sum-val b { color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) details.card:not([open]) .sum-val,
+    :root:not([data-theme="light"]) details.card:not([open]) .sum-val b { color: var(--accent); }
+  }
+  :root[data-theme="dark"] details.card#todayCard:not([open]) .sum-val,
+  :root[data-theme="dark"] details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) details.card#todayCard:not([open]) .sum-val,
+    :root:not([data-theme="light"]) details.card#todayCard:not([open]) .sum-val b { color: var(--amber); }
+  }
+
+  /* ---------- layout ---------- */
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+  /* 画面を切り替えて使うので1カラム。幅が広いときだけ中央に寄せる。 */
+  .grid.single { grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 880px) {
+    .grid.single { max-width: 620px; margin: 0 auto; }
+  }
+  .col-left, .col-right { display: grid; gap: 16px; min-width: 0; align-content: start; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    padding: 18px;
+  }
+  .card-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 11px; font-family: "IBM Plex Mono", monospace; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0;
+  }
+  .card-note { font-size: 12px; color: var(--ink-3); }
+
+  /* ---------- 名前の設定 ---------- */
+  .gate-lead { font-size: 14px; color: var(--ink-2); margin: 0 0 14px; }
+  .gate-new { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .gate-new label { flex: 1 1 180px; }
+
+  /* ---------- status ---------- */
+  .statusrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 4px 11px 4px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: .06em;
+    background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line);
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .pill[data-state="working"] { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .pill[data-state="working"] .dot { background: var(--accent); animation: beat 1.8s ease-in-out infinite; }
+  .pill[data-state="done"] { background: var(--out-soft); color: var(--out); border-color: transparent; }
+  .pill[data-state="done"] .dot { background: var(--out); }
+  @keyframes beat { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; letter-spacing: .04em; color: var(--ink-2);
+    background: var(--surface-2); border: 1px solid var(--line);
+    padding: 4px 9px; border-radius: 999px;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .chip[data-geo="ok"] .dot { background: var(--accent); }
+  .chip[data-geo="locating"] .dot { background: var(--amber); animation: beat 1.2s linear infinite; }
+  .chip[data-geo="fail"] .dot { background: var(--out); }
+
+  /* ---------- readout ---------- */
+  .geo-detail {
+    margin: -6px 0 14px; padding: 10px 12px; border-radius: 10px;
+    background: var(--out-soft); color: var(--out-ink);
+    font-size: 12.5px; line-height: 1.55;
+  }
+  :root[data-theme="dark"] .geo-detail { color: var(--out); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .geo-detail { color: var(--out); } }
+
+  .readout {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 16px 14px;
+    margin-bottom: 16px;
+  }
+  .readout-label {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .readout-value {
+    font-size: clamp(40px, 13vw, 54px); font-weight: 500; line-height: 1.05;
+    letter-spacing: -.01em; margin: 2px 0 4px;
+  }
+  .readout-value .sec { font-size: .5em; color: var(--ink-3); }
+  .readout-sub { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+
+  /* ---------- 訪問先名の入力欄 ---------- */
+  .site {
+    border: 1px solid var(--accent-line);
+    background: var(--accent-soft);
+    border-radius: 12px;
+    padding: 13px 14px 14px;
+    margin-bottom: 16px;
+  }
+  .site-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .site-label { font-size: 15px; font-weight: 700; color: var(--accent-ink); letter-spacing: .02em; }
+  :root[data-theme="dark"] .site-label { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .site-label { color: var(--accent); } }
+  .site-state { font-size: 11px; color: var(--ink-2); }
+  .site input {
+    width: 100%; padding: 13px 14px; border-radius: 10px;
+    border: 1px solid var(--accent-line); background: var(--surface); color: var(--ink);
+    font-weight: 500;
+  }
+  .site input::placeholder { color: var(--ink-3); font-weight: 400; }
+  .site-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .site-recent:empty { display: none; }
+  .site-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+  .rc {
+    background: var(--surface); border: 1px solid var(--accent-line); color: var(--accent);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .rc:hover { background: var(--accent); color: var(--on-accent); }
+  .site-help { font-size: 11.5px; color: var(--ink-2); margin: 9px 0 0; line-height: 1.5; }
+
+  /* ---------- field + key ---------- */
+  .field { display: block; margin-bottom: 14px; }
+  .field > span {
+    display: block; font-size: 11px; letter-spacing: .1em; color: var(--ink-3);
+    text-transform: uppercase; font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .field input {
+    width: 100%; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface);
+    color: var(--ink);
+  }
+  .field input::placeholder { color: var(--ink-3); }
+  input:focus-visible, button:focus-visible, a:focus-visible, textarea:focus-visible, select:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  .key {
+    width: 100%; border: 0; cursor: pointer;
+    border-radius: 12px; padding: 18px 16px 20px;
+    background: var(--accent); color: var(--on-accent);
+    box-shadow: var(--shadow-key);
+    display: grid; gap: 2px; justify-items: center;
+    transition: transform .08s ease, box-shadow .08s ease, background .15s ease;
+  }
+  .key .key-label { font-size: 23px; font-weight: 700; letter-spacing: .3em; text-indent: .3em; line-height: 1.2; }
+  .key .key-sub { font-size: 12px; opacity: .8; letter-spacing: .06em; }
+  .key:active { transform: translateY(4px); box-shadow: 0 0 0 var(--accent-ink); }
+  .key[data-kind="out"] { background: var(--out); color: var(--on-out); box-shadow: 0 4px 0 var(--out-ink), 0 12px 20px -12px rgba(16,30,27,.55); }
+  .key[data-kind="out"]:active { box-shadow: 0 0 0 var(--out-ink); }
+  .key[disabled] { opacity: .5; cursor: progress; }
+  @media (prefers-reduced-motion: reduce) {
+    .key, .pill .dot, .chip .dot { transition: none; animation: none; }
+    .key:active { transform: none; }
+  }
+  .hint { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; text-align: center; }
+
+  /* ---------- punch log ---------- */
+  .log { display: grid; gap: 10px; }
+  .log-row {
+    display: grid; grid-template-columns: 54px auto 1fr; align-items: baseline; gap: 10px;
+    padding-bottom: 10px; border-bottom: 1px dashed var(--line);
+  }
+  .log-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .log-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; text-align: center;
+    padding: 2px 0; border-radius: 6px; background: var(--accent-soft); color: var(--accent);
+  }
+  .log-tag[data-kind="out"] { background: var(--out-soft); color: var(--out); }
+  .log-time { font-size: 19px; font-weight: 500; }
+  .log-loc { font-size: 11.5px; color: var(--ink-3); text-align: right; line-height: 1.4; }
+  .log-loc a { text-decoration: none; border-bottom: 1px solid var(--accent-line); }
+  .relocate {
+    background: none; border: 0; padding: 0; margin-top: 2px; cursor: pointer;
+    font-size: 11px; color: var(--accent); text-decoration: underline;
+  }
+
+  /* ---------- 1日の中の打刻（訪問先ごと） ---------- */
+  .sess { border: 1px solid var(--line); border-radius: 11px; padding: 12px; margin-bottom: 10px; }
+  .sess-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+  .sess-no {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--accent);
+    background: var(--accent-soft); border-radius: 6px; padding: 2px 8px;
+  }
+  .sess-dur { font-size: 13px; color: var(--ink-2); }
+  .sess-head-right { display: flex; align-items: center; gap: 9px; }
+  .sess-edit {
+    background: none; border: 0; padding: 2px 0; cursor: pointer;
+    font-size: 12px; color: var(--accent); text-decoration: underline;
+  }
+  .sess-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+  .sess-form .editor-grid { grid-template-columns: 1fr 1fr; }
+  .sess-form label > span {
+    display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .sess-form input {
+    width: 100%; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .sess-del { color: var(--out); border-color: var(--out-line); }
+  .sess-del[data-armed="1"] { background: var(--out); color: var(--on-out); border-color: transparent; }
+  .sess-place {
+    width: 100%; padding: 9px 11px; border-radius: 9px; margin-bottom: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); font-weight: 500;
+  }
+  .sess-place::placeholder { color: var(--ink-3); font-weight: 400; }
+
+  .ed-sess { border-top: 1px dashed var(--line); padding-top: 12px; margin-top: 12px; }
+  .ed-sess:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+  .ed-sess-no { font-size: 11px; font-weight: 700; letter-spacing: .08em; color: var(--ink-2); margin-bottom: 6px; }
+  .ed-del { margin-top: 10px; font-size: 12px; padding: 6px 12px; }
+  .ed-break { display: block; margin-bottom: 14px; max-width: 220px; }
+
+  /* ---------- 運行記録 ---------- */
+  .veh { margin-bottom: 14px; }
+  .veh-label { font-size: 14px; font-weight: 700; margin-bottom: 6px; display: block; }
+  .veh input {
+    width: 100%; padding: 11px 13px; border-radius: 10px; font-weight: 500;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .veh input::placeholder { color: var(--ink-3); font-weight: 400; }
+  .veh-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .veh-recent:empty { display: none; }
+  .veh-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+
+  /* ---------- 出発地・帰着地 ---------- */
+  .basewrap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .baseitem > span {
+    display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .seg { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+  .seg button {
+    flex: 1; border: 0; background: none; cursor: pointer; border-radius: 7px;
+    padding: 8px 6px; font-size: 13px; font-weight: 500; color: var(--ink-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .base-note { font-size: 11.5px; color: var(--ink-3); margin: 0 0 12px; line-height: 1.5; }
+  .base-note button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-size: 11.5px; color: var(--accent); text-decoration: underline;
+  }
+
+  /* ---------- 時刻入力（OSの時計ダイアログを使わない） ---------- */
+  .tf { display: flex; align-items: center; gap: 6px; }
+  .tf input {
+    width: 100%; min-width: 0; padding: 10px 6px; border-radius: 9px; text-align: center;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  }
+  .tf b { font-weight: 500; color: var(--ink-3); flex: none; }
+  .tf input::-webkit-outer-spin-button,
+  .tf input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .tf input[type=number] { -moz-appearance: textfield; }
+
+  .odo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .odo label > span {
+    display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
+    font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
+  }
+  .odo input {
+    width: 100%; padding: 11px 12px; border-radius: 10px; text-align: right;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums;
+  }
+  /* ---------- アルコールチェック（法定記録） ---------- */
+  .alc { margin-bottom: 14px; }
+  .alc-row {
+    border: 1px solid var(--line); border-radius: 11px;
+    padding: 11px 12px; margin-bottom: 8px; background: var(--surface);
+  }
+  .alc-row[data-done="1"] { background: var(--accent-soft); border-color: transparent; }
+  .alc-row[data-alert="1"] { border-color: var(--out-line); background: var(--out-soft); }
+  .alc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .alc-tag {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+    background: var(--surface-2); color: var(--ink-2); border-radius: 6px; padding: 3px 9px;
+  }
+  .alc-row[data-done="1"] .alc-tag { background: var(--accent); color: var(--on-accent); }
+  .alc-row[data-alert="1"] .alc-tag { background: var(--out); color: var(--on-out); }
+  .alc-state { font-size: 12.5px; color: var(--ink-2); text-align: right; }
+  .alc-state b { color: var(--ink); font-weight: 500; }
+  .alc-ok {
+    width: 100%; border: 0; cursor: pointer; border-radius: 10px; padding: 12px 14px;
+    background: var(--accent); color: var(--on-accent); font-size: 14px; font-weight: 700;
+  }
+  .alc-ok:hover { filter: brightness(1.06); }
+  .alc-sub {
+    display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;
+  }
+  .alc-sub button {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    font-size: 12px; color: var(--accent); text-decoration: underline;
+  }
+  .alc-sub button.warn { color: var(--out); }
+  .alc-detail { font-size: 11.5px; color: var(--ink-2); line-height: 1.6; }
+  .alc-form { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+  .alc-form label { display: block; margin-bottom: 9px; }
+  .alc-form label > span {
+    display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .alc-form select, .alc-form input {
+    width: 100%; padding: 9px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .alc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+  @keyframes flashcard {
+    0%, 100% { box-shadow: var(--shadow-card); }
+    30%, 70% { box-shadow: 0 0 0 3px var(--out); }
+  }
+  .flash { animation: flashcard 1.6s ease-in-out; }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+
+  .gps {
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 13px 14px;
+  }
+  .gps-line {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-size: 13px; color: var(--ink-2); padding: 2px 0;
+  }
+  .gps-line strong { font-weight: 500; color: var(--ink); }
+  .gps-line strong.big { font-size: 21px; }
+  .gps-note { font-size: 11.5px; color: var(--ink-3); margin: 8px 0 0; line-height: 1.5; }
+  .gps-route {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; margin-top: 11px; padding: 11px 14px; border-radius: 10px;
+    background: var(--accent); color: var(--on-accent); border: 0; cursor: pointer;
+    font-size: 14px; font-weight: 700; text-decoration: none;
+  }
+  .gps-route:hover { filter: brightness(1.06); }
+  .gps-route[aria-disabled="true"] { background: var(--surface); color: var(--ink-3); border: 1px solid var(--line); cursor: default; }
+
+  /* ---------- 同行者（自社・応援・外注） ---------- */
+  .crew { margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--line); }
+  .crew-label { font-size: 14px; font-weight: 700; display: block; margin-bottom: 8px; }
+  .crew-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+  .crew-chips:empty { display: none; }
+  .crew-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px;
+    padding: 6px 8px 6px 13px; font-size: 13px; font-weight: 500;
+  }
+  :root[data-theme="dark"] .crew-chip { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .crew-chip { color: var(--accent); } }
+  .crew-chip[data-kind="help"], .crew-chip[data-kind="out"] { background: var(--amber-soft); color: var(--amber); }
+  .crew-chip small { font-size: 11px; opacity: .8; }
+  .crew-chip button {
+    background: none; border: 0; padding: 0 2px; cursor: pointer; line-height: 1;
+    font-size: 15px; color: inherit; opacity: .6;
+  }
+  .crew-chip button:hover { opacity: 1; }
+  .crew-add { display: flex; gap: 7px; align-items: stretch; }
+  .crew-add input {
+    flex: 1; min-width: 0; padding: 10px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .crew-add .btn { flex: none; }
+  .crew-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .crew-recent:empty { display: none; }
+  .crew-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
+
+  .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .calc-line {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    font-size: 13px; color: var(--ink-2); padding: 2px 0;
+  }
+  .calc-line strong { font-weight: 500; }
+  .calc-total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line);
+  }
+  .calc-total span { font-size: 12px; letter-spacing: .1em; color: var(--ink-3); text-transform: uppercase; font-family: "IBM Plex Mono", monospace; }
+  .calc-total strong { font-size: 30px; font-weight: 500; }
+
+  /* ---------- history ---------- */
+  .month { margin-bottom: 18px; }
+  .month:last-child { margin-bottom: 0; }
+  .month-head {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: 6px 0 8px; border-bottom: 1px solid var(--line-strong);
+    position: sticky; top: 0; background: var(--surface); z-index: 1;
+  }
+  .month-head { flex-wrap: wrap; }
+  .month-name { font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+  .month-span {
+    display: block; font-size: 11px; font-weight: 400; color: var(--ink-3);
+    letter-spacing: 0; margin-top: 1px;
+  }
+  .month-sum { font-size: 12px; color: var(--ink-2); }
+  .month-sum b { font-size: 15px; font-weight: 500; color: var(--ink); }
+
+  .day {
+    width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+    display: grid; grid-template-columns: 62px 1fr auto; gap: 12px; align-items: center;
+    padding: 11px 4px; border-bottom: 1px solid var(--line);
+  }
+  @media (hover: hover) { .day:hover { background: var(--surface-2); } }
+  @media (pointer: coarse) { .day { padding: 14px 4px; } .btn { padding: 11px 16px; } }
+  .day-date { font-size: 13px; color: var(--ink-2); }
+  .day-date b { font-size: 16px; font-weight: 500; color: var(--ink); }
+  .day-date .wd { font-size: 11px; margin-left: 3px; }
+  .day-date .sat { color: #3B72A8; } .day-date .sun { color: var(--out); }
+  :root[data-theme="dark"] .day-date .sat { color: #7FB0DE; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .day-date .sat { color: #7FB0DE; } }
+  .day-span { font-size: 13.5px; color: var(--ink-2); min-width: 0; }
+  .day-place {
+    display: block; font-size: 11.5px; color: var(--ink-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .day-who {
+    display: inline-block; font-size: 10.5px; font-weight: 700; margin-right: 6px;
+    background: var(--amber-soft); color: var(--amber); border-radius: 5px; padding: 1px 7px;
+    vertical-align: 1px;
+  }
+  .day-work { font-size: 19px; font-weight: 500; text-align: right; }
+  .day-work small { font-size: 11px; color: var(--ink-3); margin-left: 2px; }
+  .day-work.open { color: var(--accent); }
+  .day-work .tap {
+    display: block; font-size: 10.5px; color: var(--accent); margin-left: 0;
+    font-family: "Zen Kaku Gothic New", sans-serif; letter-spacing: .02em;
+  }
+
+  .editor {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin: 8px 0 12px;
+  }
+  .editor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .editor label { display: block; }
+  .editor label > span {
+    display: block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-family: "IBM Plex Mono", monospace; margin-bottom: 4px;
+  }
+  .editor input {
+    width: 100%; padding: 8px 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .editor-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    padding: 8px 14px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--ink-3); }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  .btn-danger { color: var(--out); border-color: var(--out-line); margin-left: auto; }
+  .editor-note { font-size: 11.5px; color: var(--ink-3); margin: 10px 0 0; }
+
+  /* ---------- 書き出し ---------- */
+  .banner {
+    background: var(--amber-soft); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+    font-size: 13px; color: var(--ink); display: flex; gap: 10px;
+    align-items: center; justify-content: space-between; flex-wrap: wrap;
+  }
+  .export { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .export-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .export select {
+    padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink);
+  }
+  .export textarea {
+    width: 100%; height: 120px; padding: 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    /* 16px未満だと Android がタップ時にズームして戻らないため下げない */
+    font-family: "IBM Plex Mono", monospace; font-size: 16px; line-height: 1.5; resize: vertical;
+  }
+  .export-note { font-size: 11.5px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.5; }
+
+  /* ---------- 手入力の位置指定 ---------- */
+  .mnloc {
+    border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; margin-top: 12px;
+    background: var(--surface);
+  }
+  .mnloc-state { font-size: 12.5px; color: var(--ink-2); margin-bottom: 8px; line-height: 1.5; }
+  .mnloc-state b { color: var(--ink); font-weight: 500; }
+  .mnloc-btns { display: flex; gap: 7px; flex-wrap: wrap; }
+  .mnloc-btns .btn { font-size: 12.5px; padding: 7px 12px; }
+
+  .mapmodal {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55);
+    display: flex; align-items: center; justify-content: center; padding: 14px;
+  }
+  .mapbox {
+    background: var(--surface); border-radius: 14px; width: 100%; max-width: 620px;
+    max-height: 92vh; display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .maphead {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 13px 15px; border-bottom: 1px solid var(--line);
+  }
+  .maphead strong { font-size: 15px; }
+  .mapsearch { display: flex; gap: 7px; padding: 12px 15px 0; }
+  .mapsearch input {
+    flex: 1; padding: 10px 12px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .mapresults { list-style: none; margin: 8px 15px 0; padding: 0; max-height: 130px; overflow-y: auto; }
+  .mapresults:empty { display: none; }
+  .mapresults li {
+    padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 12.5px;
+    background: var(--surface-2); margin-bottom: 5px; line-height: 1.45;
+  }
+  .mapresults li:hover { background: var(--accent-soft); color: var(--accent); }
+  #mapCanvas {
+    flex: 1 1 300px; min-height: 240px; margin: 12px 15px 0;
+    border-radius: 10px; background: var(--surface-2);
+  }
+  .mapnote { font-size: 11.5px; color: var(--ink-3); margin: 8px 15px 0; line-height: 1.5; }
+  .mapfoot { padding: 12px 15px calc(14px + env(safe-area-inset-bottom)); display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .empty { text-align: center; color: var(--ink-3); font-size: 13px; padding: 24px 8px; }
+
+  .foot {
+    margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    font-size: 11.5px; color: var(--ink-3);
+  }
+  .foot-note { max-width: 46ch; line-height: 1.5; }
+  .install { max-width: none; margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .gotomerge { max-width: none; margin: 10px 0 0; }
+  .gotomerge a {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; text-decoration: none;
+    background: var(--accent-soft); color: var(--accent);
+    padding: 8px 14px; border-radius: 9px;
+  }
+  .gotomerge a::before { content: "▸"; }
+  .gotomerge a:hover { background: var(--accent); color: var(--on-accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="12.5" fill="none" stroke="var(--accent)" stroke-width="2"></circle>
+        <path d="M15 8v7.5l5 3" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"></path>
+        <circle cx="15" cy="15" r="1.6" fill="var(--accent)"></circle>
+      </svg>
+      <div>
+        <div class="brand-eyebrow">Time Card</div>
+        <div class="brand-name">営業タイムカード</div>
+      </div>
+    </div>
+    <div class="now">
+      <div class="now-time mono" id="nowTime">--:--<span class="sec">:--</span></div>
+      <div class="now-date" id="nowDate">&nbsp;</div>
+      <div class="top-btns">
+        <button class="me-btn" id="meBtn" hidden></button>
+        <button class="view-btn" id="viewBtn" hidden>記録 ▸</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div class="col-left">
+      <section class="card" id="gate" hidden>
+        <div class="card-head"><h2 class="card-title">はじめに</h2></div>
+        <p class="gate-lead">お名前を登録してください。記録はこの端末の中だけに保存され、CSVに名前が入ります。</p>
+        <div class="gate-new">
+          <label class="field" style="margin:0">
+            <span>あなたの名前</span>
+            <input type="text" id="newName" placeholder="例: 田中 太郎" maxlength="20" autocomplete="name">
+          </label>
+          <button class="btn btn-primary" id="addName">はじめる</button>
+        </div>
+      </section>
+
+      <section class="card" id="punchCard" hidden>
+        <div class="statusrow">
+          <span class="pill" id="pill" data-state="idle"><i class="dot"></i><span id="pillText">未出勤</span></span>
+          <span class="chip" id="geoChip" data-geo="idle"><i class="dot"></i><span id="geoText">位置情報 待機中</span></span>
+        </div>
+        <p class="geo-detail" id="geoDetail" hidden></p>
+
+        <div class="readout">
+          <div class="readout-label" id="roLabel">本日の実働時間</div>
+          <div class="readout-value mono" id="roValue">0:00</div>
+          <div class="readout-sub" id="roSub">出勤ボタンを押すと打刻と同時に位置情報を記録します。</div>
+        </div>
+
+        <div class="site">
+          <div class="site-head">
+            <label class="site-label" for="place" id="siteLabel">今日の訪問先</label>
+            <span class="site-state" id="siteState">未入力</span>
+          </div>
+          <input type="text" id="place" placeholder="訪問先名を入力（例: ○○商事 本社）" maxlength="40" autocomplete="off">
+          <div class="site-recent" id="siteRecent"></div>
+          <p class="site-help" id="siteHelp">出勤前でも勤務中でも入力・変更できます。入力しなくても打刻はできます。</p>
+        </div>
+
+        <button class="key" id="key" data-kind="in">
+          <span class="key-label" id="keyLabel">出勤</span>
+          <span class="key-sub mono" id="keySub">--:--</span>
+        </button>
+        <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
+      </section>
+
+      <section class="card" id="crewCard" hidden>
+        <div class="card-head">
+          <h2 class="card-title">業務内容と同行者</h2>
+          <span class="card-note" id="crewDate"></span>
+        </div>
+        <label class="field">
+          <span>業務内容</span>
+          <input type="text" id="task" maxlength="120" placeholder="例: 新規提案 見積提出 打合せ" autocomplete="off">
+        </label>
+        <div id="crewOwn" class="crew"></div>
+        <div id="crewHelp" class="crew"></div>
+        <div id="crewOut" class="crew"></div>
+      </section>
+
+      <details class="card" id="tripCard" hidden>
+        <summary class="card-head">
+          <h2 class="card-title">運行記録</h2>
+          <span class="sum-val" id="tripSum"></span>
+        </summary>
+
+        <div class="basewrap">
+          <div class="baseitem"><span>出発地</span>
+            <div class="seg" id="segFrom">
+              <button data-from="home">自宅</button><button data-from="office">会社</button>
+            </div>
+          </div>
+          <div class="baseitem"><span>帰着地</span>
+            <div class="seg" id="segTo">
+              <button data-to="home">自宅</button><button data-to="office">会社</button>
+            </div>
+          </div>
+        </div>
+        <p class="base-note" id="baseNote"></p>
+
+        <div class="veh">
+          <label class="veh-label" for="vehicle">きょう使う車両（登録番号）</label>
+          <input type="text" id="vehicle" maxlength="30" placeholder="例: 品川 500 あ 12-34" autocomplete="off">
+          <div class="veh-recent" id="vehRecent"></div>
+        </div>
+
+        <label class="field">
+          <span>確認者（安全運転管理者）</span>
+          <input type="text" id="checker" maxlength="20" placeholder="例: 山田 一郎" autocomplete="off">
+        </label>
+
+        <div class="odo">
+          <label><span>出発メーター km</span><input type="number" id="odoStart" min="0" step="1" inputmode="numeric" placeholder="例: 45210"></label>
+          <label><span>帰着メーター km</span><input type="number" id="odoEnd" min="0" step="1" inputmode="numeric" placeholder="例: 45268"></label>
+        </div>
+        <p class="gps-note" id="odoNote" hidden></p>
+
+        <div class="alc" id="alcBox"></div>
+
+        <div class="gps" id="gpsBox"></div>
+      </details>
+
+      <details class="card" id="todayCard" hidden>
+        <summary class="card-head">
+          <h2 class="card-title">本日の打刻</h2>
+          <span class="sum-val" id="todaySum"></span>
+        </summary>
+        <div id="todayBody"></div>
+      </details>
+    </div>
+
+    <div class="col-right">
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title">記録</h2>
+          <span class="card-note" id="histNote"></span>
+        </div>
+        <div id="missingBanner"></div>
+        <div id="exportBanner"></div>
+
+        <div class="editor" id="manualPanel" hidden style="margin-top:0">
+          <div class="editor-grid">
+            <label><span>日付</span><input type="date" id="mnDate"></label>
+            <label><span>出勤</span><span id="mnInWrap"></span></label>
+            <label><span>退勤</span><span id="mnOutWrap"></span></label>
+            <label><span>休憩（分）</span><input type="number" id="mnBreak" min="0" step="5" value="90"></label>
+            <label><span>訪問先名</span><input type="text" id="mnPlace" maxlength="40" placeholder="任意"></label>
+          </div>
+          <div class="mnloc" id="mnLocBox"></div>
+          <div class="editor-actions">
+            <button class="btn btn-primary" id="mnSave">この内容で追加</button>
+            <button class="btn" id="mnClose">閉じる</button>
+          </div>
+          <p class="editor-note" id="mnNote">ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の訪問先は1件ずつ追加してください。位置情報は記録されず、CSVには「手入力」と残ります。</p>
+        </div>
+
+        <div class="export" id="exportPanel" hidden>
+          <div class="export-row">
+            <select id="csvMonth"></select>
+            <button class="btn btn-primary" id="csvSave" hidden>ファイルで保存</button>
+            <button class="btn" id="csvCopy">コピー</button>
+            <button class="btn" id="csvClose" style="margin-left:auto">閉じる</button>
+          </div>
+          <textarea id="csvText" readonly spellcheck="false"></textarea>
+          <p class="export-note" id="csvNote">このCSVを担当者に送ってください。「コピー」した内容はメールやチャットにそのまま貼り付けられます。</p>
+        </div>
+
+        <div id="history"></div>
+        <div class="foot">
+          <span class="foot-note" id="storeNote">&nbsp;</span>
+          <span style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="manualBtn">押し忘れを手入力</button>
+            <button class="btn" id="exportBtn">CSVを書き出す</button>
+          </span>
+        </div>
+        <p class="foot-note install" id="installNote"></p>
+        <p class="foot-note gotomerge" id="mergeLink" hidden>
+          <a href="./eigyo-shukei.html">届いたCSVをまとめて集計する（担当者向け）</a>
+        </p>
+      </section>
+    </div>
+  </div>
+  <div class="mapmodal" id="mapModal" hidden>
+    <div class="mapbox">
+      <div class="maphead">
+        <strong>位置を指定する</strong>
+        <button class="btn" id="mapCancel">やめる</button>
+      </div>
+      <div class="mapsearch">
+        <input type="text" id="mapQuery" placeholder="施設名や町名で検索（例: 名古屋城 / 名古屋市中区栄）">
+        <button class="btn" id="mapSearchBtn">検索</button>
+      </div>
+      <ul class="mapresults" id="mapResults"></ul>
+      <div id="mapCanvas"></div>
+      <p class="mapnote" id="mapNote">検索は施設名や町名で行ってください（「栄3-1-1」のような丁目・番地では出ません）。近くまで移動したら、地図をタップして訪問先の位置にピンを合わせます。</p>
+      <div class="mapfoot">
+        <button class="btn btn-primary" id="mapUse">この位置にする</button>
+        <span class="card-note mono" id="mapCoord"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  if (window.__timecardBooted) return;
+  window.__timecardBooted = true;
+
+  var BREAK_DEFAULT = 90;
+  var LS_REC = "eigyo-timecard-v1";
+  var LS_ME = "eigyo-timecard-me-v1";
+  var LS_EXPORT = "eigyo-timecard-export-v1";
+  var LS_TRIP = "eigyo-timecard-trips-v1";
+  var LS_MGR = "eigyo-timecard-manager-v1";
+  var LS_BASE = "eigyo-timecard-bases-v1";
+  var WD = ["日", "月", "火", "水", "木", "金", "土"];
+
+  var downloads = null;
+  var records = [];
+  var trips = {};
+  var bases = {};
+  var manager = "";
+  var meName = "";
+  var lastExportAt = 0;
+  var openKey = null;
+  var exportOpen = false;
+  var manualOpen = false;
+  var busy = false;
+  var lastPunchAt = 0;
+  var pendingRender = false;
+  var placeTimer = null;
+  var geoDetail = "";
+  var manualLoc = null;
+  var manualLocSrc = "";
+  var editSession = null;
+  var manualWho = "me";
+  var view = "punch";   /* punch = 打刻の画面 / log = 記録の画面 */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- time helpers ---------- */
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function dateKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function clockOf(ms) { var d = new Date(ms); return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function fmtHM(ms) {
+    if (!(ms > 0)) return "0:00";
+    var m = Math.floor(ms / 60000);
+    return Math.floor(m / 60) + ":" + pad(m % 60);
+  }
+  function fmtHMS(ms) {
+    if (!(ms > 0)) ms = 0;
+    var s = Math.floor(ms / 1000);
+    return Math.floor(s / 3600) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60);
+  }
+  function decHours(ms) { return (Math.max(0, ms) / 3600000).toFixed(2); }
+  function parseKey(key) { var p = key.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
+
+  /* 締め日は25日。26日から翌25日までを1つの「◯月度」として扱う。 */
+  var CLOSE_DAY = 25;
+  function periodKey(dateStr) {
+    var p = dateStr.split("-");
+    var y = +p[0], m = +p[1], d = +p[2];
+    if (d > CLOSE_DAY) { m += 1; if (m > 12) { m = 1; y += 1; } }
+    return y + "-" + pad(m);
+  }
+  function periodRange(key) {
+    var p = key.split("-");
+    var y = +p[0], m = +p[1];
+    var sy = y, sm = m - 1;
+    if (sm < 1) { sm = 12; sy = y - 1; }
+    return { sy: sy, sm: sm, y: y, m: m };
+  }
+  function periodName(key) {
+    var r = periodRange(key);
+    return r.y + "年" + r.m + "月度";
+  }
+  function periodSpan(key) {
+    var r = periodRange(key);
+    return r.sm + "/" + (CLOSE_DAY + 1) + "〜" + r.m + "/" + CLOSE_DAY;
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function newId() { return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  /* 時刻は「時」「分」の数字入力で受け取る。端末の時計ダイアログは
+     文字サイズを大きくしていると決定ボタンが画面外に出ることがあるため使わない。 */
+  function timeFieldHTML(cls, value) {
+    var p = (value || "").split(":");
+    return '<span class="tf">' +
+      '<input type="number" class="' + cls + '-h" min="0" max="23" step="1" inputmode="numeric" ' +
+      'placeholder="--" aria-label="時" value="' + (p[0] || "") + '">' +
+      "<b>:</b>" +
+      '<input type="number" class="' + cls + '-m" min="0" max="59" step="1" inputmode="numeric" ' +
+      'placeholder="--" aria-label="分" value="' + (p[1] || "") + '"></span>';
+  }
+  function readTimeField(scope, cls) {
+    var hi = scope.querySelector("." + cls + "-h");
+    var mi = scope.querySelector("." + cls + "-m");
+    if (!hi || !mi) return "";
+    var h = hi.value.trim(), m = mi.value.trim();
+    if (h === "" && m === "") return "";
+    if (h === "") h = "0";
+    if (m === "") m = "0";
+    h = Math.max(0, Math.min(23, parseInt(h, 10) || 0));
+    m = Math.max(0, Math.min(59, parseInt(m, 10) || 0));
+    return pad(h) + ":" + pad(m);
+  }
+
+  /* ---------- data shaping ---------- */
+  function activeRecord() {
+    var list = records.slice().sort(function (a, b) { return a.inAt - b.inAt; });
+    for (var i = list.length - 1; i >= 0; i--) if (!list[i].outAt) return list[i];
+    return null;
+  }
+  function days() {
+    var map = {};
+    records.slice().sort(function (a, b) { return a.inAt - b.inAt; }).forEach(function (r) {
+      var d = map[r.date] || (map[r.date] = {
+        key: r.date, date: r.date, sessions: [], breakMin: BREAK_DEFAULT, holdMs: 0, open: false
+      });
+      d.sessions.push(r);
+      d.breakMin = typeof r.breakMin === "number" ? r.breakMin : BREAK_DEFAULT;
+      if (r.outAt) d.holdMs += r.outAt - r.inAt; else d.open = true;
+    });
+    return Object.keys(map).sort().reverse().map(function (d) {
+      var day = map[d];
+      day.workMs = Math.max(0, day.holdMs - day.breakMin * 60000);
+      return day;
+    });
+  }
+  function dayOf(dateStr) {
+    var all = days();
+    for (var i = 0; i < all.length; i++) if (all[i].date === dateStr) return all[i];
+    return null;
+  }
+  /* 夜勤の時間帯は 22:00〜翌5:00。この時間にかかる打刻を夜勤として扱う。 */
+  var NIGHT_FROM = 22, NIGHT_TO = 5;
+  function isNightSession(r) {
+    var s = r.inAt, e = r.outAt || Date.now();
+    for (var off = -1; off <= 1; off++) {
+      var d = new Date(s);
+      d.setDate(d.getDate() + off);
+      var n1 = new Date(d.getFullYear(), d.getMonth(), d.getDate(), NIGHT_FROM, 0).getTime();
+      var n2 = n1 + (24 - NIGHT_FROM + NIGHT_TO) * 3600000;
+      if (s < n2 && e > n1) return true;
+    }
+    return false;
+  }
+  /* 日勤・夜勤それぞれの訪問先名 */
+  function placesByShift(d, night) {
+    var seen = {}, out = [];
+    d.sessions.forEach(function (r) {
+      if (isNightSession(r) !== night) return;
+      var p = (r.place || "").trim();
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out;
+  }
+
+  /* その日に回った訪問先名（重複なし・順番どおり） */
+  function placesOf(d) {
+    var seen = {}, out = [];
+    d.sessions.forEach(function (r) {
+      var p = (r.place || "").trim();
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out;
+  }
+  /* 最近使った訪問先名（新しい順・重複なし） */
+  function recentPlaces() {
+    var seen = {}, out = [];
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      var p = (r.place || "").trim();
+      if (p && !seen[p]) { seen[p] = 1; out.push(p); }
+    });
+    return out.slice(0, 5);
+  }
+
+  /* ---------- storage ---------- */
+  function readLS(key, fallback) {
+    try {
+      var v = localStorage.getItem(key);
+      return v == null ? fallback : JSON.parse(v);
+    } catch (e) { return fallback; }
+  }
+  function writeLS(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { return false; }
+  }
+  function saveRecords() {
+    if (!writeLS(LS_REC, records)) {
+      $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
+    }
+  }
+  function createRecord(rec) {
+    var id = newId();
+    records.push(Object.assign({ id: id }, rec));
+    saveRecords();
+    return id;
+  }
+  function patchRecord(id, patch) {
+    records.forEach(function (r) { if (r.id === id) Object.assign(r, patch); });
+    saveRecords();
+  }
+  function deleteRecord(id) {
+    records = records.filter(function (r) { return r.id !== id; });
+    saveRecords();
+  }
+
+  /* ---------- geolocation ---------- */
+  function setGeo(state, text) {
+    $("geoChip").setAttribute("data-geo", state);
+    $("geoText").textContent = text;
+    var box = $("geoDetail");
+    box.textContent = geoDetail || "";
+    box.hidden = !geoDetail;
+  }
+
+  /* 埋め込み表示（iframe）では権限ポリシーで位置情報が丸ごと禁止される。
+     その場合は許可ダイアログすら出ないので、最初に判定して伝える。 */
+  function geoPolicyBlocked() {
+    try {
+      var fp = document.featurePolicy || document.permissionsPolicy;
+      if (fp && typeof fp.allowsFeature === "function") return !fp.allowsFeature("geolocation");
+    } catch (e) {}
+    return false;
+  }
+
+  function describeGeoError(err) {
+    if (!window.isSecureContext) {
+      return "このページは HTTPS ではないため、位置情報を使えません。https:// のURLで開いてください。";
+    }
+    if (!err) return "位置情報を取得できませんでした。もう一度お試しください。";
+    if (err.code === 1) {
+      if (/polic|disabled|permissions/i.test(err.message || "") && geoPolicyBlocked()) {
+        return "この画面（埋め込み表示）では位置情報が使えない設定になっています。通常のWebページとして開く必要があります。";
+      }
+      return "位置情報が「ブロック」になっています。アドレスバーの鍵アイコン →「権限」→ 位置情報を「許可」にして、開き直してください。";
+    }
+    if (err.code === 2) {
+      return "現在地を測定できませんでした。端末の位置情報（GPS）がオンか確認し、屋外や窓ぎわでお試しください。";
+    }
+    if (err.code === 3) {
+      return "測定に時間がかかりすぎました。屋外や窓ぎわで「現在地を記録」からやり直してください。";
+    }
+    return "位置情報を取得できませんでした。";
+  }
+
+  function tryGeo(opts) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = setTimeout(function () {
+        if (!done) { done = true; resolve({ err: { code: 3, message: "timeout" } }); }
+      }, opts.timeout + 2000);
+      var finish = function (v) { if (done) return; done = true; clearTimeout(timer); resolve(v); };
+      try {
+        navigator.geolocation.getCurrentPosition(function (p) {
+          finish({
+            loc: {
+              lat: +p.coords.latitude.toFixed(6),
+              lng: +p.coords.longitude.toFixed(6),
+              acc: Math.round(p.coords.accuracy || 0)
+            }
+          });
+        }, function (e) { finish({ err: e }); }, opts);
+      } catch (e) { finish({ err: { code: 1, message: String(e && e.message) } }); }
+    });
+  }
+
+  /* GPS優先で試し、掴めなければ基地局・Wi-Fi測位に切り替える（屋内・ビル影対策） */
+  function getLocation() {
+    geoDetail = "";
+    if (!navigator.geolocation) {
+      geoDetail = "このブラウザは位置情報に対応していません。";
+      return Promise.resolve(null);
+    }
+    if (geoPolicyBlocked()) {
+      geoDetail = "この画面（埋め込み表示）では位置情報が使えない設定になっています。通常のWebページとして開く必要があります。";
+      return Promise.resolve(null);
+    }
+    return tryGeo({ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }).then(function (r) {
+      if (r.loc) return r.loc;
+      /* 拒否・禁止は何度試しても同じなので即あきらめる */
+      if (r.err && r.err.code === 1) { geoDetail = describeGeoError(r.err); return null; }
+      return tryGeo({ enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }).then(function (r2) {
+        if (r2.loc) return r2.loc;
+        geoDetail = describeGeoError(r2.err);
+        return null;
+      });
+    });
+  }
+  function locHTML(loc, id, field) {
+    if (!loc) {
+      return '<span class="log-loc">位置情報なし<br>' +
+        '<button class="relocate" data-id="' + id + '" data-field="' + field + '">現在地を記録</button></span>';
+    }
+    var q = loc.lat + "," + loc.lng;
+    return '<span class="log-loc"><a href="https://www.google.com/maps?q=' + q +
+      '" target="_blank" rel="noopener noreferrer">' + q + '</a><br>誤差 約' + loc.acc + 'm</span>';
+  }
+
+  /* ---------- punch ---------- */
+  function punch() {
+    if (!meName) return;
+    /* 指が滑って二度押ししても1回しか打刻しない */
+    if (busy || Date.now() - lastPunchAt < 2000) return;
+    lastPunchAt = Date.now();
+    var act = activeRecord();
+    busy = true;
+    $("key").disabled = true;
+    setGeo("locating", "位置情報 取得中…");
+
+    var now = Date.now();
+    var target;
+    if (act) {
+      patchRecord(act.id, { outAt: now, place: $("place").value.trim() || act.place });
+      target = { id: act.id, field: "outLoc" };
+      /* 次の訪問先を入力できるように空にする */
+      $("place").value = "";
+    } else {
+      target = {
+        id: createRecord({
+          date: dateKey(new Date(now)),
+          empName: meName,
+          inAt: now,
+          outAt: null,
+          breakMin: BREAK_DEFAULT,
+          place: $("place").value.trim(),
+          inLoc: null,
+          outLoc: null
+        }),
+        field: "inLoc"
+      };
+    }
+    render();
+
+    getLocation().then(function (loc) {
+      if (!loc) { setGeo("fail", "位置情報 記録できず"); return; }
+      setGeo("ok", "位置情報 記録しました");
+      var patch = {};
+      patch[target.field] = loc;
+      patchRecord(target.id, patch);
+    }).then(function () {
+      busy = false;
+      $("key").disabled = false;
+      render();
+      promptAlc(target.field === "outLoc");
+    });
+  }
+
+  /* 打刻の直後に、その時点で必要なアルコールチェックが未記録なら知らせる */
+  function promptAlc(wasOut) {
+    var today = dateKey(new Date());
+    if (alcOf(today, wasOut ? "post" : "pre")) return;
+    var card = $("tripCard");
+    if (card.hidden) return;
+    try { card.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { card.scrollIntoView(); }
+    card.classList.remove("flash");
+    void card.offsetWidth;
+    card.classList.add("flash");
+    setTimeout(function () { card.classList.remove("flash"); }, 1800);
+  }
+
+  /* ---------- 名前 ---------- */
+  function renderGate() {
+    var showGate = !meName;
+    $("gate").hidden = !showGate;
+    $("punchCard").hidden = showGate;
+    $("crewCard").hidden = showGate;
+    $("tripCard").hidden = showGate;
+    $("todayCard").hidden = showGate;
+    $("meBtn").hidden = showGate;
+    if (meName) $("meBtn").textContent = meName + " ▾";
+  }
+  function saveName() {
+    var name = $("newName").value.trim();
+    if (!name) { $("newName").focus(); return; }
+    meName = name;
+    writeLS(LS_ME, meName);
+    /* 過去の記録の名前も揃えておく（CSVの社員名列のため） */
+    records.forEach(function (r) { r.empName = meName; });
+    saveRecords();
+    lastPunchAt = 0;
+    $("newName").value = "";
+    render();
+  }
+
+  /* ---------- render ---------- */
+  function tick() {
+    var d = new Date();
+    $("nowTime").innerHTML = pad(d.getHours()) + ":" + pad(d.getMinutes()) + '<span class="sec">:' + pad(d.getSeconds()) + "</span>";
+    $("nowDate").textContent = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日（" + WD[d.getDay()] + "）";
+    $("keySub").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    var act = activeRecord();
+    if (act) {
+      var hold = Date.now() - act.inAt;
+      var today = dayOf(act.date);
+      var extra = today ? today.holdMs : 0;
+      var work = Math.max(0, hold + extra - (act.breakMin || BREAK_DEFAULT) * 60000);
+      $("roValue").innerHTML = fmtHMS(hold).replace(/:(\d\d)$/, '<span class="sec">:$1</span>');
+      $("roSub").textContent = "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
+    }
+  }
+
+  /* 打刻の画面と記録の画面を切り替える（縦に長くしないため） */
+  function renderView() {
+    var showGate = !meName;
+    $("viewBtn").hidden = showGate;
+    $("viewBtn").textContent = view === "punch" ? "記録 ▸" : "◂ 打刻へ";
+    document.querySelector(".col-left").hidden = !showGate && view !== "punch";
+    document.querySelector(".col-right").hidden = showGate || view !== "log";
+    document.querySelector(".grid").classList.add("single");
+  }
+
+  /* 折りたたんだままでも要点が分かるように、見出しに要約を出す */
+  function renderSummaries() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var od = odoDistance(today);
+    var t = tripOf(today);
+    var trip = [];
+    if (t.vehicle) trip.push(t.vehicle);
+    if (od != null) trip.push(od + "km" + (t.odoEstimated ? "（推定）" : ""));
+    var alc = (alcOf(today, "pre") ? 1 : 0) + (alcOf(today, "post") ? 1 : 0);
+    trip.push("チェック " + alc + "/2");
+    $("tripSum").innerHTML = trip.join(" ・ ");
+
+    $("todaySum").innerHTML = day
+      ? day.sessions.length + "件 ・ 実働 <b class='mono'>" + fmtHM(day.workMs) + "</b>"
+      : "まだ打刻なし";
+  }
+
+  function render() {
+    if (openKey) { pendingRender = true; return; }
+    pendingRender = false;
+    renderGate();
+    renderView();
+    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); }
+    renderHistory();
+    renderExport();
+    renderManual();
+    tick();
+  }
+
+  function renderPunch() {
+    var act = activeRecord();
+    var today = dayOf(dateKey(new Date()));
+    var pill = $("pill");
+
+    if (act) {
+      pill.setAttribute("data-state", "working");
+      $("pillText").textContent = "勤務中";
+      $("keyLabel").textContent = "退勤";
+      $("key").setAttribute("data-kind", "out");
+      $("roLabel").textContent = "経過時間";
+      $("hint").textContent = "退勤ボタンで打刻し、休憩 " + fmtHM((act.breakMin || BREAK_DEFAULT) * 60000) + " を引いて実働を計算します。";
+    } else {
+      var done = today && today.sessions.length;
+      pill.setAttribute("data-state", done ? "done" : "idle");
+      $("pillText").textContent = done ? "退勤済" : "未出勤";
+      $("keyLabel").textContent = done ? "再出勤" : "出勤";
+      $("key").setAttribute("data-kind", "in");
+      $("roLabel").textContent = "本日の実働時間";
+      $("roValue").textContent = today ? fmtHM(today.workMs) : "0:00";
+      $("roSub").textContent = today
+        ? "拘束 " + fmtHM(today.holdMs) + " − 休憩 " + fmtHM(today.breakMin * 60000) + " ＝ 実働 " + fmtHM(today.workMs)
+        : "出勤ボタンを押すと打刻と同時に位置情報を記録します。";
+      $("hint").textContent = done
+        ? "同じ日にもう一度打刻すると、拘束時間に合算されます。"
+        : "休憩 1:30 を自動で差し引いて実働時間を計算します。";
+    }
+  }
+
+  function renderSite() {
+    var act = activeRecord();
+    var today = dayOf(dateKey(new Date()));
+    var input = $("place");
+    /* 入力中は横取りしない */
+    if (document.activeElement !== input && act) input.value = act.place || "";
+    var val = input.value.trim();
+    var done = today && !act ? today.sessions.length : 0;
+
+    $("siteLabel").textContent = act ? "いまいる訪問先" : done ? "次に行く訪問先" : "今日の訪問先";
+    $("siteState").textContent = act
+      ? (val ? "この打刻に記録中" : "未入力（勤務中でも入力できます）")
+      : (val ? "次の出勤でこの名前を記録します" : "未入力");
+    $("siteHelp").textContent = act
+      ? "勤務中でも変更できます。打刻し直す必要はありません。"
+      : done
+        ? "1日に何件も回るときは、訪問先ごとに「再出勤」→「退勤」を押してください。前の訪問先の名前は下の「本日の打刻」から直せます。"
+        : "出勤前でも勤務中でも入力できます。入力しなくても打刻はできます。";
+
+    var recents = recentPlaces().filter(function (p) { return p !== val; });
+    $("siteRecent").innerHTML = recents.length
+      ? '<span class="rc-label">よく使う訪問先</span>' + recents.map(function (p) {
+          return '<button class="rc" data-place="' + esc(p) + '">' + esc(p) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call($("siteRecent").querySelectorAll(".rc"), function (b) {
+      b.addEventListener("click", function () {
+        input.value = b.getAttribute("data-place");
+        commitPlace();
+      });
+    });
+  }
+
+  /* 勤務中はいつでも訪問先名を書き換えられる（退勤済みの分は「本日の打刻」から直す） */
+  function commitPlace() {
+    var act = activeRecord();
+    if (act) {
+      patchRecord(act.id, { place: $("place").value.trim() });
+      renderToday();
+      renderHistory();
+    }
+    renderSite();
+  }
+
+  /* 「本日の打刻」から1件ずつ直す・消すための入力欄 */
+  function sessionFormHTML(r) {
+    return '<div class="sess-form" data-id="' + r.id + '">' +
+      '<div class="editor-grid">' +
+      "<label><span>出勤</span>" + timeFieldHTML("sf-in", clockOf(r.inAt)) + "</label>" +
+      "<label><span>退勤</span>" + timeFieldHTML("sf-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
+      "</div>" +
+      '<div class="editor-actions">' +
+      '<button class="btn btn-primary sf-save">時刻を保存</button>' +
+      '<button class="btn sess-del sf-del" data-armed="0">この打刻を削除</button>' +
+      "</div>" +
+      '<p class="editor-note">' + (r.outAt ? "" : "まだ退勤していない打刻です。間違えて押した場合はここで削除できます。") + "</p>" +
+      "</div>";
+  }
+
+  function bindSessionForm(form) {
+    var id = form.getAttribute("data-id");
+    var rec = records.filter(function (x) { return x.id === id; })[0];
+    if (!rec) return;
+    var base = parseKey(rec.date);
+    var at = function (v) {
+      var p = v.split(":");
+      return new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime();
+    };
+
+    form.querySelector(".sf-save").addEventListener("click", function () {
+      var iv = readTimeField(form, "sf-in");
+      var ov = readTimeField(form, "sf-out");
+      var patch = {};
+      var inAt = iv ? at(iv) : rec.inAt;
+      patch.inAt = inAt;
+      if (ov) {
+        var outAt = at(ov);
+        if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+        patch.outAt = outAt;
+      } else {
+        patch.outAt = null;
+      }
+      patchRecord(id, patch);
+      editSession = null;
+      render();
+    });
+
+    /* 2回押さないと消えない。指が当たっただけで記録を失わないため。 */
+    var del = form.querySelector(".sf-del");
+    del.addEventListener("click", function () {
+      if (del.getAttribute("data-armed") !== "1") {
+        del.setAttribute("data-armed", "1");
+        del.textContent = "もう一度押すと削除";
+        setTimeout(function () {
+          if (!del.parentNode) return;
+          del.setAttribute("data-armed", "0");
+          del.textContent = "この打刻を削除";
+        }, 4000);
+        return;
+      }
+      deleteRecord(id);
+      editSession = null;
+      render();
+    });
+  }
+
+  function renderToday() {
+    var now = new Date();
+    var today = dayOf(dateKey(now));
+    var tb = $("todayBody");
+
+    if (!today) {
+      tb.innerHTML = '<p class="empty">まだ本日の打刻はありません。</p>';
+      return;
+    }
+    var many = today.sessions.length > 1;
+    var blocks = today.sessions.map(function (r, i) {
+      var rows = '<div class="log-row"><span class="log-tag" data-kind="in">出勤</span>' +
+        '<span class="log-time mono">' + clockOf(r.inAt) + "</span>" + locHTML(r.inLoc, r.id, "inLoc") + "</div>";
+      if (r.outAt) {
+        rows += '<div class="log-row"><span class="log-tag" data-kind="out">退勤</span>' +
+          '<span class="log-time mono">' + clockOf(r.outAt) + "</span>" + locHTML(r.outLoc, r.id, "outLoc") + "</div>";
+      }
+      var dur = r.outAt ? fmtHM(r.outAt - r.inAt) : fmtHM(Date.now() - r.inAt) + "（勤務中）";
+      return '<div class="sess">' +
+        '<div class="sess-head">' +
+        (many ? '<span class="sess-no">' + (i + 1) + "件目</span>" : '<span class="sess-no">訪問先</span>') +
+        '<span class="sess-head-right"><span class="sess-dur">拘束 <span class="mono">' + dur + "</span></span>" +
+        '<button class="sess-edit" data-edit="' + r.id + '">' +
+        (editSession === r.id ? "閉じる" : "修正・削除") + "</button></span></div>" +
+        '<input class="sess-place" type="text" maxlength="40" data-id="' + r.id +
+        '" value="' + esc(r.place || "") + '" placeholder="訪問先名を入力">' +
+        '<div class="log">' + rows + "</div>" +
+        (editSession === r.id ? sessionFormHTML(r) : "") +
+        "</div>";
+    }).join("");
+
+    tb.innerHTML = blocks +
+      '<div class="calc">' +
+      '<div class="calc-line"><span>拘束時間' + (many ? "（" + today.sessions.length + "件合計）" : "") +
+      '</span><strong class="mono">' + fmtHM(today.holdMs) + (today.open ? "（勤務中）" : "") + "</strong></div>" +
+      '<div class="calc-line"><span>休憩</span><strong class="mono">− ' + fmtHM(today.breakMin * 60000) + "</strong></div>" +
+      '<div class="calc-total"><span>実働</span><strong class="mono">' + fmtHM(today.workMs) + "</strong></div>" +
+      "</div>";
+
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-edit]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-edit");
+        editSession = editSession === id ? null : id;
+        renderToday();
+      });
+    });
+
+    var form = tb.querySelector(".sess-form");
+    if (form) bindSessionForm(form);
+
+    Array.prototype.forEach.call(tb.querySelectorAll(".sess-place"), function (inp) {
+      inp.addEventListener("change", function () {
+        patchRecord(inp.getAttribute("data-id"), { place: inp.value.trim() });
+        renderHistory();
+        renderSite();
+      });
+    });
+
+    Array.prototype.forEach.call(tb.querySelectorAll(".relocate"), function (b) {
+      b.addEventListener("click", function () {
+        b.textContent = "取得中…";
+        b.disabled = true;
+        setGeo("locating", "位置情報 取得中…");
+        getLocation().then(function (loc) {
+          if (!loc) {
+            setGeo("fail", "位置情報 記録できず");
+            b.textContent = "もう一度試す";
+            b.disabled = false;
+            return;
+          }
+          setGeo("ok", "位置情報 記録しました");
+          var patch = {};
+          patch[b.getAttribute("data-field")] = loc;
+          patchRecord(b.getAttribute("data-id"), patch);
+          render();
+        });
+      });
+    });
+  }
+
+  function dayRowHTML(d) {
+    var dt = parseKey(d.date);
+    var wd = WD[dt.getDay()];
+    var cls = dt.getDay() === 0 ? "sun" : dt.getDay() === 6 ? "sat" : "";
+    var first = d.sessions[0];
+    var last = d.sessions[d.sessions.length - 1];
+    var span = clockOf(first.inAt) + " – " + (last.outAt ? clockOf(last.outAt) : "勤務中");
+    var place = placesOf(d).join("・");
+    if (d.sessions.length > 1) place = d.sessions.length + "件" + (place ? " ・ " + place : "");
+    if (d.sessions.some(function (r) { return r.manual; })) {
+      place = (place ? place + " ・ " : "") + "手入力";
+    }
+    var km = odoDistance(d.date);
+    var kmLabel = null;
+    if (km != null) kmLabel = km + "km" + (tripOf(d.date).odoEstimated ? "（推定）" : "");
+    else {
+      var gp = gpsPoints(d);
+      if (gp.length > 1) kmLabel = straightKm(gp).toFixed(1) + "km（直線）";
+    }
+    if (kmLabel) place = (place ? place + " ・ " : "") + kmLabel;
+    var crewN = dayCrew(d, "own").length + dayCrew(d, "help").length + dayCrew(d, "out").length;
+    var helpBadge = crewN ? '<span class="day-who">' + crewN + "名</span>" : "";
+    var task = dayTask(d);
+    if (task) place = (place ? place + " ・ " : "") + task;
+    return '<button class="day" data-key="' + esc(d.key) + '">' +
+      '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + wd + "</span></span>" +
+      '<span class="day-span">' + helpBadge + '<span class="mono">' + span + "</span>" +
+      (place ? '<span class="day-place">' + esc(place) + "</span>" : "") + "</span>" +
+      '<span class="day-work mono' + (d.open ? " open" : "") + '">' + fmtHM(d.workMs) + "<small>h</small>" +
+      '<span class="tap">' + (openKey === d.key ? "閉じる" : "修正") + "</span></span>" +
+      "</button>" + (openKey === d.key ? editorHTML(d) : "");
+  }
+
+  /* 法定記録として欠けている項目を洗い出す */
+  function missingDays() {
+    var today = dateKey(new Date());
+    return days().filter(function (d) { return !d.open; }).map(function (d) {
+      var t = tripOf(d.date);
+      var lack = [];
+      if (!t.vehicle) lack.push("車両");
+      if (odoDistance(d.date) == null) lack.push("メーター");
+      else if (t.odoEstimated) lack.push("距離が推定のまま");
+      if (!alcOf(d.date, "pre")) lack.push("乗務前チェック");
+      if (!alcOf(d.date, "post")) lack.push("乗務後チェック");
+      return lack.length ? { date: d.date, lack: lack, today: d.date === today } : null;
+    }).filter(Boolean);
+  }
+
+  function renderMissing() {
+    var host = $("missingBanner");
+    var miss = missingDays();
+    if (!miss.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<div class="banner" style="display:block">' +
+      "<b>運行記録に未記入があります（" + miss.length + "日分）</b>" +
+      '<ul style="margin:6px 0 0;padding-left:1.2em">' +
+      miss.slice(0, 5).map(function (m) {
+        return "<li>" + m.date.slice(5).replace("-", "/") + (m.today ? "（本日）" : "") +
+          " … " + m.lack.join("・") + "</li>";
+      }).join("") +
+      (miss.length > 5 ? "<li>ほか " + (miss.length - 5) + "日分</li>" : "") +
+      "</ul>" +
+      '<p style="margin:8px 0 0;font-size:11.5px">日付の行をタップすると、その日の運行記録を直せます。</p></div>';
+  }
+
+  function renderHistory() {
+    renderMissing();
+    var all = days();
+    var host = $("history");
+    if (!all.length) {
+      host.innerHTML = '<p class="empty">' + (meName ? "打刻の記録がここに並びます。" : "名前を登録すると記録が始まります。") + "</p>";
+      $("histNote").textContent = "";
+      return;
+    }
+    var months = [], index = {};
+    all.forEach(function (d) {
+      var m = periodKey(d.date);
+      if (!index[m]) { index[m] = { key: m, days: [], total: 0 }; months.push(index[m]); }
+      index[m].days.push(d);
+      index[m].total += d.workMs;
+    });
+    host.innerHTML = months.map(function (m) {
+      return '<div class="month"><div class="month-head"><span class="month-name">' +
+        periodName(m.key) + '<small class="month-span">' + periodSpan(m.key) + "</small></span>" +
+        '<span class="month-sum">' + m.days.length +
+        '日 ／ 実働 <b class="mono">' + fmtHM(m.total) + "</b></span></div>" +
+        m.days.map(dayRowHTML).join("") + "</div>";
+    }).join("");
+    $("histNote").textContent = all.length + "日分";
+
+    Array.prototype.forEach.call(host.querySelectorAll(".day"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-key");
+        openKey = openKey === k ? null : k;
+        renderHistory();
+      });
+    });
+    var ed = host.querySelector(".editor");
+    if (ed) bindEditor(ed);
+  }
+
+  /* 履歴の編集画面で、あとからアルコールチェックを記録・修正する */
+  function alcEditHTML(date, k) {
+    var a = alcOf(date, k) || {};
+    var sel = function (cls, opts, cur) {
+      return '<select class="' + cls + '">' + opts.map(function (o) {
+        return '<option value="' + o[0] + '"' + (String(cur) === o[0] ? " selected" : "") + ">" + o[1] + "</option>";
+      }).join("") + "</select>";
+    };
+    return '<div class="ed-sess-no" style="margin-top:10px">' + ALC_KEYS[k] + "のアルコールチェック</div>" +
+      '<div class="editor-grid" data-alck="' + k + '">' +
+      "<label><span>時刻</span>" + timeFieldHTML("ea-time", a.at ? clockOf(a.at) : "") + "</label>" +
+      '<label><span>酒気帯び</span>' + sel("ea-ok", [["", "未記録"], ["1", "なし"], ["0", "あり"]], a.at ? (a.ok ? "1" : "0") : "") + "</label>" +
+      '<label><span>検知器</span>' + sel("ea-det", [["1", "使用"], ["0", "不使用"]], a.detector === false ? "0" : "1") + "</label>" +
+      '<label><span>確認方法</span>' + sel("ea-face", [["1", "対面"], ["0", "対面以外"]], a.face === false ? "0" : "1") + "</label>" +
+      '<label><span>数値 mg/L</span><input type="text" class="ea-val" inputmode="decimal" maxlength="6" value="' + esc(a.value || "") + '"></label>' +
+      "</div>";
+  }
+
+  /* 過去の打刻の位置を直す欄。訪問先名から引き当てるか、地図で指定する。 */
+  function edLocHTML(r) {
+    var loc = r.inLoc || r.outLoc;
+    var state = loc
+      ? "位置: <b>" + loc.lat + ", " + loc.lng + "</b>" + (r.locSrc ? "（" + esc(r.locSrc) + "）" : "")
+      : "位置の記録がありません";
+    return '<div class="mnloc" data-locid="' + r.id + '">' +
+      '<div class="mnloc-state">' + state + "</div>" +
+      '<div class="mnloc-btns">' +
+      '<button class="btn" data-locname="' + r.id + '">訪問先名から取得</button>' +
+      '<button class="btn" data-locmap="' + r.id + '">地図から選ぶ</button>' +
+      '<button class="btn" data-lochere="' + r.id + '">現在地</button>' +
+      (loc ? '<button class="btn" data-locclear="' + r.id + '">位置を消す</button>' : "") +
+      "</div></div>";
+  }
+
+  function setRecordLoc(id, loc, src) {
+    patchRecord(id, { inLoc: loc, outLoc: loc, locSrc: loc ? src : "" });
+    renderHistory();
+    renderToday();
+  }
+
+  function bindEditorLoc(ed) {
+    var nameOf = function (id) {
+      var block = ed.querySelector('.ed-sess[data-id="' + id + '"]');
+      var input = block && block.querySelector(".ed-place");
+      if (input && input.value.trim()) return input.value.trim();
+      var rec = records.filter(function (x) { return x.id === id; })[0];
+      return rec ? (rec.place || "") : "";
+    };
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locname]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-locname");
+        var hit = placeLocation(nameOf(id), id);
+        var box = ed.querySelector('.mnloc[data-locid="' + id + '"] .mnloc-state');
+        if (!hit) {
+          box.innerHTML = "「" + esc(nameOf(id) || "（訪問先名なし）") +
+            "」の位置は、ほかの記録にもありません。地図から指定してください。";
+          return;
+        }
+        setRecordLoc(id, hit.loc, "過去の記録（" + hit.date.slice(5).replace("-", "/") + "）から");
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locmap]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-locmap");
+        var rec = records.filter(function (x) { return x.id === id; })[0];
+        openMapPicker(rec && (rec.inLoc || rec.outLoc), function (loc) {
+          setRecordLoc(id, loc, "地図で指定");
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-lochere]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-lochere");
+        b.textContent = "取得中…";
+        b.disabled = true;
+        getLocation().then(function (loc) {
+          b.disabled = false;
+          b.textContent = "現在地";
+          if (!loc) {
+            var box = ed.querySelector('.mnloc[data-locid="' + id + '"] .mnloc-state');
+            box.textContent = geoDetail || "現在地を取得できませんでした。";
+            return;
+          }
+          setRecordLoc(id, loc, "現在地");
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll("[data-locclear]"), function (b) {
+      b.addEventListener("click", function () {
+        setRecordLoc(b.getAttribute("data-locclear"), null, "");
+      });
+    });
+  }
+
+  /* 編集画面の1行入力欄 */
+  function edFieldHTML(id, label, value, ph, cls) {
+    return '<label style="display:block;margin-bottom:9px">' +
+      '<span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">' +
+      esc(label) + "</span>" +
+      '<input type="text"' + (id ? ' id="' + id + '"' : "") + (cls ? ' class="' + cls + '"' : "") +
+      ' maxlength="200" placeholder="' + esc(ph || "") +
+      '" value="' + esc(value || "") + '" style="width:100%;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink)"></label>';
+  }
+  /* 「会社名, 名前」を空白区切りで並べた文字列を配列に戻す */
+  function parseCrew(text, withCo) {
+    /* 「○○工業, 西村」のようにカンマの後に空白があっても1人として扱う */
+    return String(text || "").replace(/[,，、][\s　]+/g, ",")
+      .split(/[\s　]+/).map(function (s) { return s.trim(); })
+      .filter(Boolean).map(function (s) {
+        if (!withCo) return { co: "", name: s };
+        var i = s.search(/[,，、]/);
+        if (i < 0) return { co: "", name: s };
+        return { co: s.slice(0, i).trim(), name: s.slice(i + 1).trim() };
+      }).filter(function (p) { return p.name || p.co; });
+  }
+
+  function editorHTML(d) {
+    var many = d.sessions.length > 1;
+    return '<div class="editor" data-key="' + esc(d.key) + '">' +
+      '<label class="ed-break"><span>休憩（分）／1日あたり</span>' +
+      '<input type="number" id="edBreak" min="0" step="5" value="' + d.breakMin + '"></label>' +
+      d.sessions.map(function (r, i) {
+        return '<div class="ed-sess" data-id="' + r.id + '">' +
+          (many ? '<div class="ed-sess-no">' + (i + 1) + "件目</div>" : "") +
+          '<div class="editor-grid">' +
+          "<label><span>出勤</span>" + timeFieldHTML("ed-in", clockOf(r.inAt)) + "</label>" +
+          "<label><span>退勤</span>" + timeFieldHTML("ed-out", r.outAt ? clockOf(r.outAt) : "") + "</label>" +
+          '<label><span>訪問先名</span><input type="text" class="ed-place" maxlength="40" value="' + esc(r.place || "") + '"></label>' +
+          "</div>" +
+          edFieldHTML("", "業務内容", sessionTask(r), "例: 新規提案 見積提出", "es-task") +
+          Object.keys(CREW).map(function (kind) {
+            return edFieldHTML("", CREW[kind].label +
+              (CREW[kind].co ? "（空白区切り。会社名は「会社名, 名前」）" : "（空白区切り）"),
+              sessionCrew(r, kind).map(crewText).join(" "),
+              CREW[kind].co ? "○○工業, 村上　高川" : "森本　磯谷", "es-crew-" + kind);
+          }).join("") +
+          edLocHTML(r) +
+          (many ? '<button class="btn btn-danger ed-del" data-id="' + r.id + '">この打刻を削除</button>' : "") +
+          "</div>";
+      }).join("") +
+      '<div class="ed-sess">' +
+      '<div class="ed-sess-no">運行記録</div>' +
+      '<div class="editor-grid">' +
+      '<label><span>車両</span><input type="text" id="edVehicle" maxlength="30" value="' + esc(tripOf(d.date).vehicle) + '"></label>' +
+      '<label><span>出発メーター</span><input type="number" id="edOdoStart" min="0" step="1" value="' +
+      (tripOf(d.date).odoStart == null ? "" : tripOf(d.date).odoStart) + '"></label>' +
+      '<label><span>帰着メーター</span><input type="number" id="edOdoEnd" min="0" step="1" value="' +
+      (tripOf(d.date).odoEnd == null ? "" : tripOf(d.date).odoEnd) + '"></label>' +
+      "</div>" +
+      Object.keys(ALC_KEYS).map(function (k) { return alcEditHTML(d.date, k); }).join("") +
+      '<label style="display:block;margin-top:10px"><span style="display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:4px">指示事項</span>' +
+      '<input type="text" id="edAlcNote" maxlength="60" value="' +
+      esc((alcOf(d.date, "pre") || {}).note || (alcOf(d.date, "post") || {}).note || "") + '"></label>' +
+      "</div>" +
+      '<div class="editor-actions">' +
+      '<button class="btn btn-primary" id="edSave">保存</button>' +
+      '<button class="btn" id="edCancel">閉じる</button>' +
+      '<button class="btn btn-danger" id="edDelete">この日をすべて削除</button>' +
+      "</div>" +
+      '<p class="editor-note">' + (many
+        ? "この日は " + d.sessions.length + " 件の訪問先を回っています。訪問先ごとに時刻と名前を直せます。休憩は1日分としてまとめて引かれます。"
+        : "退勤を押し忘れた日は、ここに退勤時刻を入れれば計算されます。") + "</p>" +
+      "</div>";
+  }
+
+  function bindEditor(ed) {
+    var key = ed.getAttribute("data-key");
+    var close = function () { openKey = null; renderHistory(); if (pendingRender) render(); };
+    ed.querySelector("#edCancel").addEventListener("click", close);
+    bindEditorLoc(ed);
+
+    /* 削除は2回押し。1回目は確認、4秒で元に戻る。 */
+    var arm = function (btn, label, run) {
+      btn.addEventListener("click", function () {
+        if (btn.getAttribute("data-armed") !== "1") {
+          btn.setAttribute("data-armed", "1");
+          btn.textContent = "もう一度押すと削除";
+          setTimeout(function () {
+            if (!btn.parentNode) return;
+            btn.setAttribute("data-armed", "0");
+            btn.textContent = label;
+          }, 4000);
+          return;
+        }
+        run();
+      });
+    };
+
+    arm(ed.querySelector("#edDelete"), "この日をすべて削除", function () {
+      var d = dayOf(key);
+      if (!d) return close();
+      d.sessions.forEach(function (r) { deleteRecord(r.id); });
+      openKey = null; render();
+    });
+
+    Array.prototype.forEach.call(ed.querySelectorAll(".ed-del"), function (b) {
+      arm(b, "この打刻を削除", function () {
+        deleteRecord(b.getAttribute("data-id"));
+        openKey = null; render();
+      });
+    });
+
+    ed.querySelector("#edSave").addEventListener("click", function () {
+      var d = dayOf(key);
+      if (!d) return close();
+      var base = parseKey(d.date);
+      var brk = Math.max(0, parseInt(ed.querySelector("#edBreak").value, 10) || 0);
+      var at = function (v) {
+        var p = v.split(":");
+        return new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime();
+      };
+
+      Array.prototype.forEach.call(ed.querySelectorAll(".ed-sess"), function (block) {
+        var id = block.getAttribute("data-id");
+        var rec = records.filter(function (r) { return r.id === id; })[0];
+        if (!rec) return;
+        var inVal = readTimeField(block, "ed-in");
+        var outVal = readTimeField(block, "ed-out");
+        var patch = { breakMin: brk, place: block.querySelector(".ed-place").value.trim() };
+        /* 業務内容と同行者は打刻ごとに保存する */
+        patch.task = block.querySelector(".es-task").value.trim();
+        patch.crew = { own: [], help: [], out: [] };
+        Object.keys(CREW).forEach(function (kind) {
+          patch.crew[kind] = parseCrew(block.querySelector(".es-crew-" + kind).value, CREW[kind].co);
+        });
+        var inAt = inVal ? at(inVal) : rec.inAt;
+        patch.inAt = inAt;
+        if (outVal) {
+          var outAt = at(outVal);
+          if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+          patch.outAt = outAt;
+        }
+        patchRecord(id, patch);
+      });
+
+
+      var numOf = function (sel) {
+        var v = parseInt(ed.querySelector(sel).value, 10);
+        return isNaN(v) ? null : v;
+      };
+      var tripPatch = {
+        vehicle: ed.querySelector("#edVehicle").value.trim(),
+        odoStart: numOf("#edOdoStart"),
+        odoEnd: numOf("#edOdoEnd")
+      };
+      if (tripPatch.odoEnd !== tripOf(d.date).odoEnd) tripPatch.odoEstimated = false;
+      saveTrip(d.date, tripPatch);
+
+      var note = ed.querySelector("#edAlcNote").value.trim();
+      var base = parseKey(d.date);
+      Array.prototype.forEach.call(ed.querySelectorAll("[data-alck]"), function (g) {
+        var k = g.getAttribute("data-alck");
+        var okv = g.querySelector(".ea-ok").value;
+        var tv = readTimeField(g, "ea-time");
+        if (okv === "" || !tv) { clearAlc(d.date, k); return; }
+        var p = tv.split(":");
+        recordAlc(d.date, k, {
+          at: new Date(base.getFullYear(), base.getMonth(), base.getDate(), +p[0], +p[1]).getTime(),
+          ok: okv === "1",
+          detector: g.querySelector(".ea-det").value === "1",
+          face: g.querySelector(".ea-face").value === "1",
+          how: "",
+          value: g.querySelector(".ea-val").value.trim(),
+          note: note,
+          checker: manager
+        });
+      });
+
+      openKey = null; render();
+    });
+  }
+
+  /* ---------- 運行記録 ---------- */
+  function tripOf(date) {
+    var t = trips[date] || {};
+    return {
+      vehicle: t.vehicle || "", odoStart: t.odoStart, odoEnd: t.odoEnd,
+      odoEstimated: !!t.odoEstimated
+    };
+  }
+  function saveTrip(date, patch) {
+    var t = trips[date] || {};
+    Object.keys(patch).forEach(function (k) { t[k] = patch[k]; });
+    trips[date] = t;
+    pruneTrip(date);   /* 中身が空になったときだけ消す（判定は1か所に集約） */
+    if (!writeLS(LS_TRIP, trips)) {
+      $("storeNote").textContent = "この端末に保存できませんでした。ブラウザの設定をご確認ください。";
+    }
+  }
+  function recentVehicles() {
+    var seen = {}, out = [];
+    Object.keys(trips).sort().reverse().forEach(function (d) {
+      var v = (trips[d].vehicle || "").trim();
+      if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    return out.slice(0, 4);
+  }
+  function odoDistance(date) {
+    var t = tripOf(date);
+    if (typeof t.odoStart !== "number" || typeof t.odoEnd !== "number") return null;
+    var d = t.odoEnd - t.odoStart;
+    return d >= 0 ? d : null;
+  }
+
+  /* 打刻に残った位置情報を、時刻順の立寄地点として取り出す */
+  function gpsPoints(day) {
+    if (!day) return [];
+    var pts = [];
+    day.sessions.forEach(function (r) {
+      if (r.inLoc) pts.push({ t: r.inAt, loc: r.inLoc, place: r.place || "", kind: "着" });
+      if (r.outAt && r.outLoc) pts.push({ t: r.outAt, loc: r.outLoc, place: r.place || "", kind: "発" });
+    });
+    pts.sort(function (a, b) { return a.t - b.t; });
+    /* ほぼ同じ地点が続く場合は1つにまとめる（同じ訪問先での出勤→退勤など） */
+    return pts.filter(function (p, i) {
+      if (i === 0) return true;
+      return haversineKm(pts[i - 1].loc, p.loc) >= 0.05;
+    });
+  }
+  function haversineKm(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var la1 = a.lat * rad, la2 = b.lat * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  function straightKm(pts) {
+    var km = 0;
+    for (var i = 1; i < pts.length; i++) km += haversineKm(pts[i - 1].loc, pts[i].loc);
+    return km;
+  }
+
+  /* ---------- 出発地・帰着地（直行直帰／会社経由） ---------- */
+  var BASE_LABEL = { home: "自宅", office: "会社" };
+  /* 会社（広島県廿日市市木材港北）の位置。町名から求めたおおよその位置なので、
+     正確な場所は各自「会社を変更」から地図で直せる。 */
+  var DEFAULT_OFFICE = { lat: 34.350595, lng: 132.3461, acc: 0, approx: true };
+
+  function baseChoice(date) {
+    var t = trips[date] || {};
+    if (t.from || t.to) return { from: t.from || "home", to: t.to || "home" };
+    /* 前回の選び方を引き継ぐ */
+    var prev = Object.keys(trips).filter(function (d) { return d < date && trips[d].from; }).sort().pop();
+    if (prev) return { from: trips[prev].from, to: trips[prev].to || trips[prev].from };
+    return { from: "home", to: "home" };
+  }
+
+  /* 距離の計算には、拠点から最初の訪問先・最後の訪問先から拠点までを含める */
+  function routePoints(day) {
+    var pts = gpsPoints(day);
+    if (!pts.length) return [];
+    var c = baseChoice(day.date);
+    var out = pts.slice();
+    if (bases[c.from]) out.unshift({ t: 0, loc: bases[c.from], place: BASE_LABEL[c.from], kind: "発" });
+    if (bases[c.to]) out.push({ t: Infinity, loc: bases[c.to], place: BASE_LABEL[c.to], kind: "着" });
+    return out;
+  }
+
+  /* 実測メーターと直線距離の比から、自分の走り方に合った道路距離の係数を求める。
+     実測が貯まるほど精度が上がる。データが少ないうちは一般的な 1.3 を使う。 */
+  var FACTOR_DEFAULT = 1.3;
+  function roadFactor() {
+    var ratios = [];
+    days().forEach(function (d) {
+      var t = trips[d.date];
+      if (!t || t.odoEstimated) return;              /* 推定値は学習に使わない */
+      var km = odoDistance(d.date);
+      if (km == null || km <= 0) return;
+      var sk = straightKm(routePoints(d));
+      if (sk < 0.5) return;                          /* 近すぎる日は比が暴れる */
+      var r = km / sk;
+      if (r >= 1 && r <= 3) ratios.push(r);          /* 明らかな外れ値は除く */
+    });
+    if (ratios.length < 3) return { factor: FACTOR_DEFAULT, n: ratios.length, own: false };
+    ratios.sort(function (a, b) { return a - b; });
+    var mid = Math.floor(ratios.length / 2);
+    var med = ratios.length % 2 ? ratios[mid] : (ratios[mid - 1] + ratios[mid]) / 2;
+    return { factor: Math.round(med * 100) / 100, n: ratios.length, own: true };
+  }
+
+  /* 直線距離から道路距離を推定する */
+  function estimatedKm(day) {
+    var sk = straightKm(routePoints(day));
+    if (!(sk > 0)) return null;
+    return Math.round(sk * roadFactor().factor);
+  }
+  /* Googleマップの経路URL。開けば実際の道路距離が分かる */
+  function routeUrl(pts) {
+    if (pts.length < 2) return null;
+    var q = function (p) { return p.loc.lat + "," + p.loc.lng; };
+    var mid = pts.slice(1, -1);
+    /* 経由地は多すぎると開けないため間引く */
+    while (mid.length > 8) {
+      mid = mid.filter(function (_, i) { return i % 2 === 0; });
+    }
+    var url = "https://www.google.com/maps/dir/?api=1&origin=" + q(pts[0]) +
+      "&destination=" + q(pts[pts.length - 1]);
+    if (mid.length) url += "&waypoints=" + mid.map(q).join("|");
+    return url + "&travelmode=driving";
+  }
+
+  /* ---------- 業務内容と同行者（自社・応援・外注） ----------
+     応援や外注の方は打刻しない。自分の記録に「誰が入ったか」を残す。 */
+  var CREW = {
+    own: { label: "同行者（自社）", box: "crewOwn", co: false, ph: "例: 森本" },
+    help: { label: "同行者（応援）", box: "crewHelp", co: true, ph: "例: 村上" },
+    out: { label: "同行者（外注）", box: "crewOut", co: true, ph: "例: 高川" }
+  };
+
+  /* 業務内容と同行者は打刻（訪問先）ごとに持つ */
+  function sessionCrew(r, kind) { return (r && r.crew && r.crew[kind]) ? r.crew[kind] : []; }
+  function sessionTask(r) { return (r && r.task) ? r.task : ""; }
+  function saveSessionCrew(id, kind, list) {
+    var rec = records.filter(function (x) { return x.id === id; })[0];
+    if (!rec) return;
+    var crew = rec.crew || { own: [], help: [], out: [] };
+    crew[kind] = list;
+    patchRecord(id, { crew: crew });
+  }
+  /* いま入力対象になる打刻。勤務中ならその打刻、退勤後は本日の最後の打刻。 */
+  function targetSession() {
+    var act = activeRecord();
+    if (act) return act;
+    var d = dayOf(dateKey(new Date()));
+    return d ? d.sessions[d.sessions.length - 1] : null;
+  }
+  /* 1日ぶんをまとめたもの（CSVや履歴の表示用） */
+  function dayCrew(d, kind) {
+    var seen = {}, out = [];
+    d.sessions.forEach(function (r) {
+      sessionCrew(r, kind).forEach(function (p) {
+        var k = crewText(p);
+        if (!seen[k]) { seen[k] = 1; out.push(p); }
+      });
+    });
+    return out;
+  }
+  function dayTask(d) {
+    var many = placesOf(d).length > 1;
+    var parts = [];
+    d.sessions.forEach(function (r) {
+      var t = sessionTask(r);
+      if (!t) return;
+      var label = many && r.place ? r.place + ": " + t : t;
+      if (parts.indexOf(label) < 0) parts.push(label);
+    });
+    return parts.join(" ／ ");
+  }
+  /* 中身が空になった日の記録は残さない */
+  function pruneTrip(date) {
+    var t = trips[date];
+    if (!t) return;
+    if (!t.vehicle && t.odoStart == null && t.odoEnd == null && !t.alc &&
+        !t.from && !t.to && !t.helpers && !t.crew && !t.task) delete trips[date];
+  }
+  function crewText(p) { return (p.co ? p.co + " " : "") + p.name; }
+  function sameCrew(a, b) { return (a.co || "") === (b.co || "") && a.name === b.name; }
+
+  function recentCrew(kind) {
+    var seen = {}, out = [];
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      sessionCrew(r, kind).forEach(function (p) {
+        var k = crewText(p);
+        if (!seen[k]) { seen[k] = 1; out.push(p); }
+      });
+    });
+    return out.slice(0, 8);
+  }
+
+  function renderCrew() {
+    var target = targetSession();
+    $("crewDate").textContent = target
+      ? (target.place || "訪問先名未入力") + "　" + clockOf(target.inAt) + "〜"
+      : "打刻するとここに入ります";
+    $("crewCard").querySelector(".card-title").textContent =
+      "業務内容と同行者" + (target ? "（この訪問先）" : "");
+    $("task").disabled = !target;
+    if (document.activeElement !== $("task")) $("task").value = sessionTask(target);
+
+    Object.keys(CREW).forEach(function (kind) {
+      var spec = CREW[kind];
+      var list = sessionCrew(target, kind);
+      var box = $(spec.box);
+      if (!target) {
+        box.innerHTML = '<span class="crew-label">' + spec.label + "</span>" +
+          '<p class="gps-note" style="margin:0">出勤を押すと入力できます。</p>';
+        return;
+      }
+      box.innerHTML = '<span class="crew-label">' + spec.label + "</span>" +
+        '<div class="crew-chips">' + list.map(function (p, i) {
+          return '<span class="crew-chip" data-kind="' + kind + '">' +
+            (p.co ? "<small>" + esc(p.co) + "</small> " : "") + esc(p.name) +
+            '<button data-del="' + i + '" aria-label="消す">×</button></span>';
+        }).join("") + "</div>" +
+        '<div class="crew-add">' +
+        (spec.co ? '<input type="text" class="ci-co" maxlength="30" placeholder="会社名（任意）">' : "") +
+        '<input type="text" class="ci-name" maxlength="20" placeholder="' + spec.ph + '">' +
+        '<button class="btn ci-add">追加</button></div>' +
+        '<div class="crew-recent"></div>';
+
+      var recents = recentCrew(kind).filter(function (p) {
+        return !list.some(function (x) { return sameCrew(x, p); });
+      });
+      var rbox = box.querySelector(".crew-recent");
+      rbox.innerHTML = recents.length
+        ? '<span class="rc-label">よく一緒の方</span>' + recents.map(function (p, i) {
+            return '<button class="rc" data-add="' + i + '">' + esc(crewText(p)) + "</button>";
+          }).join("")
+        : "";
+      Array.prototype.forEach.call(rbox.querySelectorAll("[data-add]"), function (b) {
+        b.addEventListener("click", function () {
+          saveSessionCrew(target.id, kind, list.concat([recents[+b.getAttribute("data-add")]]));
+          render();
+        });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll("[data-del]"), function (b) {
+        b.addEventListener("click", function () {
+          var next = list.slice();
+          next.splice(+b.getAttribute("data-del"), 1);
+          saveSessionCrew(target.id, kind, next);
+          render();
+        });
+      });
+      var addOne = function () {
+        var nameEl = box.querySelector(".ci-name");
+        var name = nameEl.value.trim();
+        if (!name) { nameEl.focus(); return; }
+        var coEl = box.querySelector(".ci-co");
+        var p = { co: coEl ? coEl.value.trim() : "", name: name };
+        if (!list.some(function (x) { return sameCrew(x, p); })) {
+          saveSessionCrew(target.id, kind, list.concat([p]));
+        }
+        render();
+      };
+      box.querySelector(".ci-add").addEventListener("click", addOne);
+      box.querySelector(".ci-name").addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); addOne(); }
+      });
+    });
+  }
+
+  /* ---------- アルコールチェック（道路交通法施行規則 第9条の10） ---------- */
+  var ALC_KEYS = { pre: "乗務前", post: "乗務後" };
+
+  function alcOf(date, k) {
+    var t = trips[date];
+    return t && t.alc ? t.alc[k] : null;
+  }
+  function recordAlc(date, k, data) {
+    var t = trips[date] || (trips[date] = {});
+    t.alc = t.alc || {};
+    t.alc[k] = data;
+    writeLS(LS_TRIP, trips);
+  }
+  function clearAlc(date, k) {
+    var t = trips[date];
+    if (!t || !t.alc) return;
+    delete t.alc[k];
+    if (!Object.keys(t.alc).length) delete t.alc;
+    writeLS(LS_TRIP, trips);
+  }
+  function alcSummary(a) {
+    if (!a) return "";
+    return [
+      a.ok ? "酒気帯びなし" : "酒気帯びあり",
+      a.detector ? "検知器あり" : "検知器なし",
+      a.face ? "対面" : "対面以外（" + (a.how || "電話等") + "）",
+      a.value ? a.value + " mg/L" : "",
+      "確認者 " + (a.checker || "未記入")
+    ].filter(Boolean).join(" ・ ");
+  }
+
+  /* 前回同じ車両を使った日の帰着メーターを引き継ぐ */
+  function carryOverOdo(date) {
+    var t = trips[date];
+    if (!t || !t.vehicle || t.odoStart != null) return null;
+    var prev = Object.keys(trips).filter(function (d) {
+      return d < date && trips[d].vehicle === t.vehicle && typeof trips[d].odoEnd === "number";
+    }).sort().pop();
+    if (!prev) return null;
+    t.odoStart = trips[prev].odoEnd;
+    writeLS(LS_TRIP, trips);
+    return { from: prev, km: t.odoStart };
+  }
+
+  function renderAlc() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var box = $("alcBox");
+    var openForm = box.getAttribute("data-open") || "";
+
+    box.innerHTML = '<label class="veh-label" style="font-size:14px;margin-bottom:8px">アルコールチェック（法定記録）</label>' +
+      Object.keys(ALC_KEYS).map(function (k) {
+        var a = alcOf(today, k);
+        /* 出勤したのに乗務前が未記録、退勤したのに乗務後が未記録なら警告 */
+        var alert = !a && day && (k === "pre" || !day.open);
+        var body;
+        if (a) {
+          body = '<div class="alc-detail">' + esc(alcSummary(a)) +
+            (a.note ? "<br>指示事項: " + esc(a.note) : "") + "</div>" +
+            '<div class="alc-sub"><button data-undo="' + k + '">取り消してやり直す</button></div>';
+        } else {
+          body = '<button class="alc-ok" data-ok="' + k + '">酒気帯びなし（検知器で確認）</button>' +
+            '<div class="alc-sub"><button data-form="' + k + '">詳細を入力・酒気帯びありの記録</button></div>';
+        }
+        if (openForm === k) body += alcFormHTML(k);
+        return '<div class="alc-row" data-done="' + (a ? 1 : 0) + '" data-alert="' + (alert ? 1 : 0) + '">' +
+          '<div class="alc-head"><span class="alc-tag">' + ALC_KEYS[k] + "</span>" +
+          '<span class="alc-state">' + (a ? "<b>" + clockOf(a.at) + "</b> 記録済" : alert ? "未記録です" : "未記録") + "</span></div>" +
+          body + "</div>";
+      }).join("");
+
+    Array.prototype.forEach.call(box.querySelectorAll("[data-ok]"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-ok");
+        recordAlc(today, k, {
+          at: Date.now(), ok: true, detector: true, face: true,
+          value: "", note: "", checker: $("checker").value.trim()
+        });
+        box.setAttribute("data-open", "");
+        render();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-undo]"), function (b) {
+      b.addEventListener("click", function () {
+        clearAlc(today, b.getAttribute("data-undo"));
+        render();
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll("[data-form]"), function (b) {
+      b.addEventListener("click", function () {
+        box.setAttribute("data-open", b.getAttribute("data-form"));
+        renderAlc();
+      });
+    });
+    var form = box.querySelector(".alc-form");
+    if (form) bindAlcForm(form, today);
+  }
+
+  function alcFormHTML(k) {
+    return '<div class="alc-form" data-k="' + k + '">' +
+      '<div class="alc-grid">' +
+      '<label><span>酒気帯び</span><select class="af-ok"><option value="1">なし</option><option value="0">あり</option></select></label>' +
+      '<label><span>検知器</span><select class="af-det"><option value="1">使用した</option><option value="0">使用しない</option></select></label>' +
+      "</div>" +
+      '<div class="alc-grid">' +
+      '<label><span>確認方法</span><select class="af-face"><option value="1">対面</option><option value="0">対面以外</option></select></label>' +
+      '<label><span>数値 mg/L（任意）</span><input class="af-val" type="text" inputmode="decimal" maxlength="6" placeholder="0.00"></label>' +
+      "</div>" +
+      '<label><span>対面以外の方法（任意）</span><input class="af-how" type="text" maxlength="30" placeholder="例: 電話とカメラで確認"></label>' +
+      '<label><span>指示事項（任意）</span><input class="af-note" type="text" maxlength="60" placeholder="例: 運転を中止させた"></label>' +
+      '<div class="editor-actions"><button class="btn btn-primary af-save">この内容で記録</button>' +
+      '<button class="btn af-cancel">閉じる</button></div>' +
+      "</div>";
+  }
+
+  function bindAlcForm(form, date) {
+    var k = form.getAttribute("data-k");
+    form.querySelector(".af-cancel").addEventListener("click", function () {
+      $("alcBox").setAttribute("data-open", "");
+      renderAlc();
+    });
+    form.querySelector(".af-save").addEventListener("click", function () {
+      recordAlc(date, k, {
+        at: Date.now(),
+        ok: form.querySelector(".af-ok").value === "1",
+        detector: form.querySelector(".af-det").value === "1",
+        face: form.querySelector(".af-face").value === "1",
+        how: form.querySelector(".af-how").value.trim(),
+        value: form.querySelector(".af-val").value.trim(),
+        note: form.querySelector(".af-note").value.trim(),
+        checker: $("checker").value.trim()
+      });
+      $("alcBox").setAttribute("data-open", "");
+      render();
+    });
+  }
+
+  /* 出発地・帰着地の選択と、拠点の位置登録 */
+  function renderBases(date) {
+    var c = baseChoice(date);
+    ["home", "office"].forEach(function (k) {
+      var fb = $("segFrom").querySelector('[data-from="' + k + '"]');
+      var tb = $("segTo").querySelector('[data-to="' + k + '"]');
+      fb.setAttribute("aria-pressed", c.from === k ? "true" : "false");
+      tb.setAttribute("aria-pressed", c.to === k ? "true" : "false");
+    });
+
+    var missing = [];
+    if (!bases[c.from]) missing.push(c.from);
+    if (c.to !== c.from && !bases[c.to]) missing.push(c.to);
+    var note = $("baseNote");
+    if (missing.length) {
+      note.innerHTML = missing.map(function (k) {
+        return BASE_LABEL[k] + 'の位置が未登録です。<button data-setbase="' + k + '">地図で登録する</button>';
+      }).join("<br>") + "<br>登録すると、拠点から訪問先までの距離も計算に入ります。";
+    } else {
+      note.innerHTML = (bases.office && bases.office.approx
+        ? "会社は住所（廿日市市木材港北）からのおおよその位置です。正確にするには変更してください。<br>"
+        : "") +
+        "登録済み: " +
+        ["home", "office"].filter(function (k) { return bases[k]; })
+          .map(function (k) { return BASE_LABEL[k]; }).join(" / ") +
+        '　<button data-setbase="home">自宅を変更</button>　<button data-setbase="office">会社を変更</button>';
+    }
+    Array.prototype.forEach.call(note.querySelectorAll("[data-setbase]"), function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-setbase");
+        openMapPicker(bases[k], function (loc) {
+          bases[k] = loc;
+          writeLS(LS_BASE, bases);
+          render();
+        });
+      });
+    });
+  }
+
+  function renderTrip() {
+    var today = dateKey(new Date());
+    var day = dayOf(today);
+    var t = tripOf(today);
+    var now = new Date();
+
+    var carried = carryOverOdo(today);
+    t = tripOf(today);
+    $("odoNote").hidden = !carried;
+    if (carried) {
+      $("odoNote").textContent = "前回この車両を使った " + carried.from.slice(5).replace("-", "/") +
+        " の帰着メーター " + carried.km + " km を出発メーターに引き継ぎました。違う場合は直してください。";
+    }
+
+    if (document.activeElement !== $("vehicle")) $("vehicle").value = t.vehicle;
+    if (document.activeElement !== $("odoStart")) $("odoStart").value = t.odoStart == null ? "" : t.odoStart;
+    if (document.activeElement !== $("odoEnd")) $("odoEnd").value = t.odoEnd == null ? "" : t.odoEnd;
+    if (document.activeElement !== $("checker")) $("checker").value = manager;
+
+    var recents = recentVehicles().filter(function (v) { return v !== $("vehicle").value.trim(); });
+    $("vehRecent").innerHTML = recents.length
+      ? '<span class="rc-label">よく使う車両</span>' + recents.map(function (v) {
+          return '<button class="rc" data-veh="' + esc(v) + '">' + esc(v) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call($("vehRecent").querySelectorAll(".rc"), function (b) {
+      b.addEventListener("click", function () {
+        $("vehicle").value = b.getAttribute("data-veh");
+        saveTrip(today, { vehicle: $("vehicle").value.trim() });
+        renderTrip();
+      });
+    });
+
+    renderBases(today);
+
+    var pts = gpsPoints(day);
+    var rpts = routePoints(day);
+    var sk = straightKm(rpts);
+    var od = odoDistance(today);
+    var url = routeUrl(rpts);
+
+    var est = estimatedKm(day);
+    var rf = roadFactor();
+    var estimated = !!tripOf(today).odoEstimated;
+
+    var html = "";
+    if (od != null) {
+      html += '<div class="gps-line"><span>走行距離' + (estimated ? "（推定）" : "（メーター実測）") +
+        '</span><strong class="big mono">' + od + ' km</strong></div>';
+    }
+    html += '<div class="gps-line"><span>GPSの立寄地点</span><strong class="mono">' + pts.length + " か所</strong></div>";
+    var c = baseChoice(today);
+    html += '<div class="gps-line"><span>計算する区間</span><strong>' +
+      (bases[c.from] ? BASE_LABEL[c.from] : "訪問先") + " → 訪問先 → " +
+      (bases[c.to] ? BASE_LABEL[c.to] : "訪問先") + "</strong></div>";
+    html += '<div class="gps-line"><span>直線距離の合計</span><strong class="mono">' +
+      (rpts.length > 1 ? sk.toFixed(1) + " km" : "—") + "</strong></div>";
+    if (est != null) {
+      html += '<div class="gps-line"><span>ルート推定（× ' + rf.factor + "）</span><strong class=\"mono\">" + est + " km</strong></div>";
+    }
+
+    if (est != null && t.odoStart != null) {
+      html += '<button class="gps-route" id="applyEst" style="margin-top:9px">出発 ' + t.odoStart +
+        " + " + est + " = <strong>" + (t.odoStart + est) + "</strong> を帰着メーターに入れる</button>";
+    }
+    if (url) {
+      html += '<a class="gps-route" href="' + url + '" target="_blank" rel="noopener noreferrer" style="background:var(--surface);color:var(--accent);border:1px solid var(--accent-line)">地図でルートを開く（実距離を見る）</a>';
+    }
+
+    if (estimated) {
+      html += '<p class="gps-note" style="color:var(--out)">帰着メーターは推定値です。実際のメーターを確認して直してください。直すとこの日が係数の学習に使われ、次回から精度が上がります。</p>';
+    } else if (est != null) {
+      html += '<p class="gps-note">' + (rf.own
+        ? "係数 " + rf.factor + " は、あなたの実測 " + rf.n + "日分から算出しています。"
+        : "係数は一般的な " + FACTOR_DEFAULT + " を使っています。実測メーターを3日分入れると、あなたの走り方に合わせて自動調整されます。") +
+        "</p>";
+    } else if (!url) {
+      html += '<p class="gps-note">出勤・退勤の打刻時に位置情報が記録されると、立寄先と距離が自動で出ます。</p>';
+    }
+    $("gpsBox").innerHTML = html;
+
+    if ($("applyEst")) {
+      $("applyEst").addEventListener("click", function () {
+        saveTrip(today, { odoEnd: tripOf(today).odoStart + est, odoEstimated: true });
+        render();
+      });
+    }
+    renderAlc();
+  }
+
+  /* ---------- 訪問先名から位置を引き当てる ---------- */
+  /* 過去に同じ訪問先名で打刻した位置を探す。個人宅など地図検索で出ない訪問先に効く。 */
+  function placeLocation(name, excludeId) {
+    var key = (name || "").trim();
+    if (!key) return null;
+    var hit = null;
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).some(function (r) {
+      if (r.id === excludeId) return false;
+      if ((r.place || "").trim() !== key) return false;
+      var loc = r.inLoc || r.outLoc;
+      if (!loc) return false;
+      hit = { loc: loc, date: r.date };
+      return true;
+    });
+    return hit;
+  }
+
+  /* ---------- 地図から位置を選ぶ ---------- */
+  var leafletReady = false, lmap = null, lmarker = null, mapPick = null, mapOnPick = null;
+
+  function loadLeaflet() {
+    if (leafletReady) return Promise.resolve(true);
+    return new Promise(function (resolve) {
+      var css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+      document.head.appendChild(css);
+      var js = document.createElement("script");
+      js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+      js.onload = function () { leafletReady = true; resolve(true); };
+      js.onerror = function () { resolve(false); };
+      document.head.appendChild(js);
+    });
+  }
+
+  /* 地図の初期位置。過去の打刻があればその近くから始める。 */
+  function defaultCenter() {
+    var r = records.slice().sort(function (a, b) { return b.inAt - a.inAt; })
+      .filter(function (x) { return x.inLoc || x.outLoc; })[0];
+    if (r) { var l = r.inLoc || r.outLoc; return [l.lat, l.lng]; }
+    return [35.681236, 139.767125];
+  }
+
+  function openMapPicker(start, onPick) {
+    mapOnPick = onPick;
+    mapPick = start || null;
+    $("mapModal").hidden = false;
+    $("mapResults").innerHTML = "";
+    $("mapQuery").value = "";
+    setMapCoord();
+    loadLeaflet().then(function (ok) {
+      if (!ok) {
+        $("mapNote").textContent = "地図を読み込めませんでした。通信環境を確認してください。住所検索も使えません。";
+        return;
+      }
+      var center = mapPick ? [mapPick.lat, mapPick.lng] : defaultCenter();
+      if (!lmap) {
+        lmap = L.map("mapCanvas").setView(center, mapPick ? 17 : 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap"
+        }).addTo(lmap);
+        lmap.on("click", function (e) {
+          setPin(e.latlng.lat, e.latlng.lng);
+        });
+      } else {
+        lmap.setView(center, mapPick ? 17 : 13);
+      }
+      setTimeout(function () { lmap.invalidateSize(); }, 80);
+      if (mapPick) setPin(mapPick.lat, mapPick.lng, true);
+    });
+  }
+
+  function setPin(lat, lng, keepView) {
+    mapPick = { lat: +lat.toFixed(6), lng: +lng.toFixed(6), acc: 0 };
+    if (lmarker) lmarker.setLatLng([lat, lng]);
+    else if (window.L) lmarker = L.marker([lat, lng], { draggable: true }).addTo(lmap)
+      .on("dragend", function (e) {
+        var p = e.target.getLatLng();
+        setPin(p.lat, p.lng, true);
+      });
+    if (!keepView && lmap) lmap.panTo([lat, lng]);
+    setMapCoord();
+  }
+  function setMapCoord() {
+    $("mapCoord").textContent = mapPick ? mapPick.lat + ", " + mapPick.lng : "未選択";
+  }
+
+  /* 住所・建物名の検索は OpenStreetMap の Nominatim を使う（キー不要） */
+  function searchPlace() {
+    var q = $("mapQuery").value.trim();
+    if (!q) return;
+    $("mapResults").innerHTML = "<li>検索中…</li>";
+    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ja&q=" +
+      encodeURIComponent(q);
+    fetch(url, { headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (list) {
+        if (!list.length) {
+          $("mapResults").innerHTML = "<li>見つかりませんでした。地図を直接タップして指定してください。</li>";
+          return;
+        }
+        $("mapResults").innerHTML = list.map(function (x, i) {
+          return '<li data-i="' + i + '">' + esc(x.display_name) + "</li>";
+        }).join("");
+        Array.prototype.forEach.call($("mapResults").querySelectorAll("li[data-i]"), function (li) {
+          li.addEventListener("click", function () {
+            var x = list[+li.getAttribute("data-i")];
+            if (lmap) lmap.setView([+x.lat, +x.lon], 17);
+            setPin(+x.lat, +x.lon, true);
+            $("mapResults").innerHTML = "";
+          });
+        });
+      })["catch"](function () {
+        $("mapResults").innerHTML = "<li>検索できませんでした。地図を直接タップして指定してください。</li>";
+      });
+  }
+
+  function closeMapPicker() { $("mapModal").hidden = true; }
+
+  /* ---------- 押し忘れの手入力 ---------- */
+  function openManual() {
+    manualOpen = true;
+    $("mnDate").value = dateKey(new Date());
+    $("mnInWrap").innerHTML = timeFieldHTML("mn-in", "");
+    $("mnOutWrap").innerHTML = timeFieldHTML("mn-out", "");
+    $("mnBreak").value = BREAK_DEFAULT;
+    $("mnPlace").value = "";
+    $("mnNote").textContent = "ボタンを押し忘れた分を後から追加できます。同じ日に何件でも追加できるので、別の訪問先は1件ずつ追加してください。CSVには「手入力」と残ります。";
+    manualLoc = null;
+    manualLocSrc = "";
+    renderManual();
+    var firstTime = $("mnInWrap").querySelector("input");
+    if (firstTime) firstTime.focus();
+  }
+  function renderManual() {
+    $("manualPanel").hidden = !manualOpen;
+    if (manualOpen) renderManualLoc();
+  }
+
+  /* 手入力する訪問先の位置。名前が一致する過去の打刻があれば自動で拾う。 */
+  function renderManualLoc() {
+    var name = $("mnPlace").value.trim();
+    if (!manualLoc && name) {
+      var hit = placeLocation(name);
+      if (hit) {
+        manualLoc = hit.loc;
+        manualLocSrc = "過去の記録（" + hit.date.slice(5).replace("-", "/") + "）から";
+      }
+    }
+    var state = manualLoc
+      ? "位置: <b>" + manualLoc.lat + ", " + manualLoc.lng + "</b><br>" + esc(manualLocSrc)
+      : (name ? "「" + esc(name) + "」の位置は記録にありません。地図から指定できます。" : "訪問先名を入れると、過去に打刻した位置を自動で探します。");
+    $("mnLocBox").innerHTML = '<div class="mnloc-state">' + state + "</div>" +
+      '<div class="mnloc-btns">' +
+      '<button class="btn" id="mnMapBtn">地図から選ぶ</button>' +
+      '<button class="btn" id="mnHereBtn">現在地を使う</button>' +
+      (manualLoc ? '<button class="btn" id="mnClearLoc">位置を消す</button>' : "") +
+      "</div>";
+
+    $("mnMapBtn").addEventListener("click", function () {
+      openMapPicker(manualLoc, function (loc) {
+        manualLoc = loc;
+        manualLocSrc = "地図で指定";
+        renderManualLoc();
+      });
+    });
+    $("mnHereBtn").addEventListener("click", function () {
+      var b = $("mnHereBtn");
+      b.textContent = "取得中…";
+      b.disabled = true;
+      getLocation().then(function (loc) {
+        b.disabled = false;
+        b.textContent = "現在地を使う";
+        if (!loc) { $("mnNote").textContent = geoDetail || "現在地を取得できませんでした。"; return; }
+        manualLoc = loc;
+        manualLocSrc = "現在地";
+        renderManualLoc();
+      });
+    });
+    if ($("mnClearLoc")) {
+      $("mnClearLoc").addEventListener("click", function () {
+        manualLoc = null; manualLocSrc = ""; renderManualLoc();
+      });
+    }
+  }
+
+  function saveManual() {
+    var dv = $("mnDate").value;
+    var inVal = readTimeField($("manualPanel"), "mn-in");
+    var outVal = readTimeField($("manualPanel"), "mn-out");
+    if (!dv || !inVal) {
+      $("mnNote").textContent = "日付と出勤時刻を入力してください。";
+      return;
+    }
+    var base = parseKey(dv);
+    var ip = inVal.split(":");
+    var inAt = new Date(base.getFullYear(), base.getMonth(), base.getDate(), +ip[0], +ip[1]).getTime();
+    var outAt = null;
+    if (outVal) {
+      var op = outVal.split(":");
+      outAt = new Date(base.getFullYear(), base.getMonth(), base.getDate(), +op[0], +op[1]).getTime();
+      if (outAt <= inAt) outAt += 86400000;   /* 日をまたぐ勤務 */
+    }
+    createRecord({
+      date: dv,
+      empName: meName,
+      inAt: inAt,
+      outAt: outAt,
+      breakMin: Math.max(0, parseInt($("mnBreak").value, 10) || 0),
+      place: $("mnPlace").value.trim(),
+      inLoc: manualLoc,
+      outLoc: manualLoc,
+      manual: true,
+      locSrc: manualLoc ? manualLocSrc : ""
+    });
+    manualOpen = false;
+    render();
+  }
+
+  /* ---------- CSV ---------- */
+  function csvCell(v) {
+    var s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  /* CSVのアルコールチェック5列（日時・酒気帯び・検知器・方法・数値） */
+  function alcCells(date, k) {
+    var a = alcOf(date, k);
+    if (!a) return ["", "", "", "", ""];
+    var d = new Date(a.at);
+    return [
+      d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + clockOf(a.at),
+      a.ok ? "なし" : "あり",
+      a.detector ? "使用" : "不使用",
+      a.face ? "対面" : "対面以外" + (a.how ? "(" + a.how + ")" : ""),
+      a.value || ""
+    ];
+  }
+
+  function monthKeys() {
+    var seen = {}, out = [];
+    days().forEach(function (d) {
+      var m = periodKey(d.date);
+      if (!seen[m]) { seen[m] = 1; out.push(m); }
+    });
+    return out;
+  }
+  function buildCsv(month) {
+    var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
+    var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
+      "訪問先数", "訪問先名", "訪問先名(日勤)", "訪問先名(夜勤)", "訪問先ごとの内訳",
+      "業務内容", "同行者(自社)", "同行者(応援)", "同行者(外注)",
+      "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
+      "確認者",
+      "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
+      "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
+      "指示事項",
+      "出勤地点", "退勤地点", "備考"];
+    var lines = [head.join(",")];
+    var total = 0, totalKm = 0;
+    list.slice().reverse().forEach(function (d) {
+      var first = d.sessions[0];
+      var last = d.sessions[d.sessions.length - 1];
+      var dt = parseKey(d.date);
+      total += d.workMs;
+      var tr = tripOf(d.date);
+      var od = odoDistance(d.date);
+      var pts = gpsPoints(d);
+      var rpts = routePoints(d);
+      if (od != null) totalKm += od;
+      lines.push([
+        meName, d.date, WD[dt.getDay()],
+        clockOf(first.inAt),
+        last.outAt ? clockOf(last.outAt) : "",
+        fmtHM(d.holdMs), d.breakMin, fmtHM(d.workMs), decHours(d.workMs),
+        d.sessions.length,
+        placesOf(d).join("／"),
+        placesByShift(d, false).join("／"),
+        placesByShift(d, true).join("／"),
+        d.sessions.map(function (r) {
+          return clockOf(r.inAt) + "-" + (r.outAt ? clockOf(r.outAt) : "未退勤") +
+            " " + (r.place || "訪問先名なし") +
+            (r.outAt ? "(" + fmtHM(r.outAt - r.inAt) + ")" : "");
+        }).join(" ／ "),
+        dayTask(d),
+        dayCrew(d, "own").map(crewText).join(" "),
+        dayCrew(d, "help").map(crewText).join(" "),
+        dayCrew(d, "out").map(crewText).join(" "),
+        tr.vehicle,
+        BASE_LABEL[baseChoice(d.date).from] || "",
+        BASE_LABEL[baseChoice(d.date).to] || "",
+        tr.odoStart == null ? "" : tr.odoStart,
+        tr.odoEnd == null ? "" : tr.odoEnd,
+        od == null ? "" : od,
+        od == null ? "" : (tr.odoEstimated ? "推定（ルート）" : "メーター実測"),
+        rpts.length > 1 ? straightKm(rpts).toFixed(1) : "",
+        pts.length,
+        (alcOf(d.date, "pre") || {}).checker || (alcOf(d.date, "post") || {}).checker || ""
+      ].concat(alcCells(d.date, "pre")).concat(alcCells(d.date, "post")).concat([
+        [(alcOf(d.date, "pre") || {}).note, (alcOf(d.date, "post") || {}).note].filter(Boolean).join(" / "),
+        first.inLoc ? first.inLoc.lat + " " + first.inLoc.lng : "",
+        last.outLoc ? last.outLoc.lat + " " + last.outLoc.lng : "",
+        (function () {
+          var parts = [];
+          if (d.sessions.some(function (r) { return r.manual; })) parts.push("手入力");
+          var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
+          if (src) parts.push("位置は" + src);
+          return parts.join("・");
+        })()
+      ]).map(csvCell).join(","));
+    });
+    /* 合計行は列名で位置を決める（列を足しても崩れないように） */
+    var foot = head.map(function () { return ""; });
+    var put = function (col, v) { var i = head.indexOf(col); if (i >= 0) foot[i] = v; };
+    put("日付", "合計");
+    put("曜日", list.length + "日");
+    put("実働時間", fmtHM(total));
+    put("実働(時間換算)", decHours(total));
+    if (totalKm) put("走行距離(km)", totalKm);
+    lines.push(foot.map(csvCell).join(","));
+    return "﻿" + lines.join("\r\n") + "\r\n";
+  }
+  function currentMonthChoice() {
+    var sel = $("csvMonth");
+    return sel.value === "all" ? "" : sel.value;
+  }
+  function refreshCsvText() {
+    $("csvText").value = buildCsv(currentMonthChoice());
+  }
+  function markExported() {
+    lastExportAt = Date.now();
+    writeLS(LS_EXPORT, lastExportAt);
+    renderExport();
+  }
+
+  /* 未書き出しの完了日数 */
+  function unexportedDays() {
+    return days().filter(function (d) {
+      if (d.open) return false;
+      var last = d.sessions[d.sessions.length - 1];
+      return last.outAt > lastExportAt;
+    }).length;
+  }
+
+  function renderExport() {
+    $("exportPanel").hidden = !exportOpen;
+    var n = unexportedDays();
+    $("storeNote").textContent = lastExportAt
+      ? "最後の書き出し " + new Date(lastExportAt).toLocaleDateString("ja-JP") +
+        (n ? "／未書き出し " + n + "日分" : "／すべて書き出し済み")
+      : "記録はこの端末の中だけに保存されます。定期的にCSVを書き出してください。";
+
+    var banner = $("exportBanner");
+    if (n >= 7 && !exportOpen) {
+      banner.innerHTML = '<div class="banner"><span>書き出していない記録が ' + n +
+        '日分あります。端末を替えたり閲覧データを消すと記録は失われます。</span>' +
+        '<button class="btn" id="bannerExport">いま書き出す</button></div>';
+      $("bannerExport").addEventListener("click", openExport);
+    } else {
+      banner.innerHTML = "";
+    }
+  }
+
+  function openExport() {
+    if (!days().length) return;
+    exportOpen = true;
+    var sel = $("csvMonth");
+    var months = monthKeys();
+    var thisMonth = periodKey(dateKey(new Date()));
+    sel.innerHTML = months.map(function (m) {
+      return '<option value="' + m + '">' + periodName(m) + "（" + periodSpan(m) + "）</option>";
+    }).join("") + '<option value="all">全期間</option>';
+    sel.value = months.indexOf(thisMonth) >= 0 ? thisMonth : (months[0] || "all");
+    refreshCsvText();
+    renderExport();
+    $("exportPanel").scrollIntoView({ block: "nearest" });
+  }
+
+  /* ---------- boot ---------- */
+  records = readLS(LS_REC, []);
+  trips = readLS(LS_TRIP, {}) || {};
+  manager = readLS(LS_MGR, "") || "";
+  bases = readLS(LS_BASE, {}) || {};
+  if (!bases.office) bases.office = DEFAULT_OFFICE;
+  meName = readLS(LS_ME, "") || "";
+  lastExportAt = readLS(LS_EXPORT, 0) || 0;
+  /* 日ごとに持っていた業務内容・同行者を、その日の打刻へ移す（旧版からの引き継ぎ） */
+  (function () {
+    var moved = false;
+    Object.keys(trips).forEach(function (d) {
+      var t = trips[d];
+      if (!t.task && !t.crew && !t.helpers) return;
+      var sess = records.filter(function (r) { return r.date === d; })
+        .sort(function (a, b) { return a.inAt - b.inAt; });
+      if (sess.length) {
+        var first = sess[0];
+        if (t.task && !first.task) first.task = t.task;
+        if (!first.crew) {
+          first.crew = t.crew || { own: [], help: t.helpers || [], out: [] };
+        }
+        moved = true;
+      }
+      delete t.task; delete t.crew; delete t.helpers;
+      pruneTrip(d);
+    });
+    if (moved) { saveRecords(); writeLS(LS_TRIP, trips); }
+  })();
+
+  /* 以前の共有版で保存された記録があれば引き継ぐ */
+  records.forEach(function (r) { if (!r.empName && meName) r.empName = meName; });
+  /* 位置情報が使えない環境かどうかを、打刻を待たずに知らせる */
+  if (!navigator.geolocation) {
+    geoDetail = "このブラウザは位置情報に対応していません。";
+  } else if (geoPolicyBlocked()) {
+    geoDetail = "この画面（埋め込み表示）では位置情報が使えない設定になっています。打刻と時間の計算は使えますが、位置は記録されません。通常のWebページとして開くと記録できます。";
+  } else if (!window.isSecureContext) {
+    geoDetail = "このページは HTTPS ではないため、位置情報を使えません。https:// のURLで開いてください。";
+  }
+  render();
+  if (geoDetail) setGeo("fail", "位置情報 使えません");
+  setInterval(tick, 1000);
+
+  $("viewBtn").addEventListener("click", function () {
+    view = view === "punch" ? "log" : "punch";
+    render();
+    window.scrollTo(0, 0);
+  });
+
+  $("key").addEventListener("click", punch);
+  $("addName").addEventListener("click", saveName);
+  $("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveName(); });
+  $("meBtn").addEventListener("click", function () {
+    $("newName").value = meName;
+    meName = "";
+    render();
+    $("newName").focus();
+  });
+
+  $("place").addEventListener("input", function () {
+    clearTimeout(placeTimer);
+    placeTimer = setTimeout(commitPlace, 500);
+  });
+  $("place").addEventListener("blur", commitPlace);
+
+  function commitTask() {
+    var t = targetSession();
+    if (!t) return;
+    patchRecord(t.id, { task: $("task").value.trim() });
+    renderHistory();
+    renderToday();
+  }
+  $("task").addEventListener("change", commitTask);
+  $("task").addEventListener("blur", commitTask);
+
+  function commitTrip() {
+    var today = dateKey(new Date());
+    var num = function (el) {
+      var v = parseInt($(el).value, 10);
+      return isNaN(v) ? null : v;
+    };
+    var patch = {
+      vehicle: $("vehicle").value.trim(),
+      odoStart: num("odoStart"),
+      odoEnd: num("odoEnd")
+    };
+    /* 手で帰着メーターを直したら、推定ではなく実測として扱う */
+    if (patch.odoEnd !== tripOf(today).odoEnd) patch.odoEstimated = false;
+    saveTrip(today, patch);
+    renderTrip();
+    renderHistory();
+  }
+  ["vehicle", "odoStart", "odoEnd"].forEach(function (id) {
+    $(id).addEventListener("change", commitTrip);
+    $(id).addEventListener("blur", commitTrip);
+  });
+  function commitChecker() {
+    manager = $("checker").value.trim();
+    writeLS(LS_MGR, manager);
+  }
+  $("checker").addEventListener("change", commitChecker);
+  $("checker").addEventListener("blur", commitChecker);
+
+  Array.prototype.forEach.call($("segFrom").querySelectorAll("[data-from]"), function (b) {
+    b.addEventListener("click", function () {
+      saveTrip(dateKey(new Date()), { from: b.getAttribute("data-from") });
+      render();
+    });
+  });
+  Array.prototype.forEach.call($("segTo").querySelectorAll("[data-to]"), function (b) {
+    b.addEventListener("click", function () {
+      saveTrip(dateKey(new Date()), { to: b.getAttribute("data-to") });
+      render();
+    });
+  });
+
+  $("manualBtn").addEventListener("click", function () {
+    if (manualOpen) { manualOpen = false; renderManual(); } else { openManual(); }
+  });
+  $("mnClose").addEventListener("click", function () { manualOpen = false; renderManual(); });
+  $("mnSave").addEventListener("click", saveManual);
+  $("mnPlace").addEventListener("change", renderManualLoc);
+  $("mnPlace").addEventListener("blur", renderManualLoc);
+
+  $("mapCancel").addEventListener("click", closeMapPicker);
+  $("mapSearchBtn").addEventListener("click", searchPlace);
+  $("mapQuery").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); searchPlace(); }
+  });
+  $("mapUse").addEventListener("click", function () {
+    if (!mapPick) { $("mapNote").textContent = "地図をタップして位置を選んでください。"; return; }
+    if (mapOnPick) mapOnPick(mapPick);
+    closeMapPicker();
+  });
+
+  $("exportBtn").addEventListener("click", openExport);
+  $("csvClose").addEventListener("click", function () { exportOpen = false; renderExport(); });
+  $("csvMonth").addEventListener("change", refreshCsvText);
+
+  $("csvCopy").addEventListener("click", function () {
+    var ta = $("csvText");
+    var done = function () {
+      $("csvCopy").textContent = "コピーしました";
+      markExported();
+      setTimeout(function () { $("csvCopy").textContent = "コピー"; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(done)["catch"](function () {
+        ta.focus(); ta.select();
+        $("csvNote").textContent = "自動コピーできませんでした。選択された内容を手動でコピーしてください。";
+      });
+    } else {
+      ta.focus(); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {
+        $("csvNote").textContent = "選択された内容を手動でコピーしてください。";
+      }
+    }
+  });
+
+  /* 通常のWebページに置いた場合は、ブラウザのダウンロード機能で保存する */
+  function blobSave(filename, text) {
+    try {
+      var blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      markExported();
+    } catch (e) {
+      $("csvNote").textContent = "ファイル保存ができませんでした。「コピー」をお使いください。";
+    }
+  }
+
+  $("csvSave").addEventListener("click", function () {
+    var m = currentMonthChoice();
+    var name = (meName || "timecard").replace(/[\\\/:*?"<>|\s]+/g, "_");
+    var filename = "timecard-" + (m ? m.replace("-", "") : "all") + "-" + name + ".csv";
+    var csv = buildCsv(m);
+    if (!downloads) return blobSave(filename, csv);
+    downloads.save({ filename: filename, data: csv }).then(markExported)["catch"](function (e) {
+      if (e && e.code === "declined") return;
+      $("csvNote").textContent = "ファイル保存ができませんでした。「コピー」をお使いください。";
+    });
+  });
+
+  var ua = navigator.userAgent;
+  var isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  $("installNote").textContent = isIOS
+    ? "iPhone / iPad：共有ボタン →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
+    : /Android/.test(ua)
+      ? "Android：Chrome のメニュー →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
+      : "各社員にこのページのリンクを渡し、それぞれの端末で名前を登録してもらってください。記録は端末ごとに保存され、CSVで集約します。";
+
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then(function (d) {
+      if (d) { downloads = d; $("csvSave").hidden = false; }
+    })["catch"](function () {});
+  } else {
+    /* 自前のWebページ（GitHub Pages など）では、保存も集計ページへの移動もできる */
+    $("csvSave").hidden = false;
+    $("mergeLink").hidden = false;
+  }
+})();
+</script>
+
+</body>
+</html>
