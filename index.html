@@ -590,6 +590,88 @@
   .crew-recent:empty { display: none; }
   .crew-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
 
+  #taskRecent { margin-top: 8px; }
+  #crewCard .field + .site-recent:empty + .crew, #crewCard .field + .crew { margin-top: 14px; }
+
+  /* ---------- 声で入力 ---------- */
+  .voice { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .voice-btn {
+    flex: none; display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 15px; border-radius: 999px; cursor: pointer;
+    background: var(--surface); color: var(--accent); border: 1.5px solid var(--accent);
+    font-size: 14px; font-weight: 700;
+  }
+  .voice-btn[data-on="1"] { background: var(--out); color: var(--on-out); border-color: transparent; animation: beat 1.4s ease-in-out infinite; }
+  .voice-hint { font-size: 11.5px; color: var(--ink-2); line-height: 1.45; }
+  .voice-panel {
+    border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 13px; margin-bottom: 14px;
+    background: var(--surface-2);
+  }
+  .voice-heard { font-size: 13px; color: var(--ink-2); margin: 0 0 9px; line-height: 1.5; }
+  .voice-heard b { color: var(--ink); font-weight: 500; }
+  .voice-panel .editor-actions { margin-top: 10px; }
+  .voice-panel .btn-primary { flex: 1; padding: 11px 14px; font-size: 15px; font-weight: 700; }
+
+  /* ---------- 運行記録を前回と同じで ---------- */
+  .quick {
+    background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: var(--radius);
+    padding: 12px 14px; display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap;
+  }
+  .quick-text { flex: 1 1 200px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+  .quick-text b { display: block; font-size: 14px; color: var(--accent-ink); }
+  :root[data-theme="dark"] .quick-text b { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .quick-text b { color: var(--accent); } }
+  .quick .btn { flex: 1 1 140px; padding: 11px 14px; font-size: 14px; font-weight: 700; }
+
+  /* ---------- 打刻ボタンを画面下に固定 ---------- */
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    padding: 10px calc(14px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line);
+  }
+  .dock-key {
+    display: flex; align-items: baseline; justify-content: center; gap: 12px;
+    width: 100%; max-width: 560px; margin: 0 auto; border: 0; cursor: pointer;
+    padding: 14px 16px; border-radius: 12px;
+    background: var(--accent); color: var(--on-accent); box-shadow: 0 3px 0 var(--accent-ink);
+  }
+  .dock-key[data-kind="out"] { background: var(--out); color: var(--on-out); box-shadow: 0 3px 0 var(--out-ink); }
+  .dock-key:active { transform: translateY(3px); box-shadow: none; }
+  .dock-key[disabled] { opacity: .5; }
+  .dock-label { font-size: 19px; font-weight: 700; letter-spacing: .2em; }
+  .dock-sub { font-size: 12.5px; opacity: .85; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.has-dock .wrap { padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+
+  /* ---------- 今日の動き（時系列） ---------- */
+  .tl { list-style: none; margin: 0 0 14px; padding: 0; }
+  .tl li { display: grid; grid-template-columns: 3.4em 18px 1fr; column-gap: 8px; }
+  .tl-time { font-size: 14px; font-weight: 500; text-align: right; padding-top: 1px; }
+  .tl-rail { position: relative; }
+  .tl-rail::before { content: ""; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: var(--accent-line); }
+  .tl li:first-child .tl-rail::before { top: 9px; }
+  .tl li:last-child .tl-rail::before { bottom: calc(100% - 9px); }
+  .tl-dot { position: absolute; left: 3px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); border: 2px solid var(--surface); }
+  .tl li[data-kind="out"] .tl-dot { background: var(--out); }
+  .tl li[data-kind="base"] .tl-dot { background: var(--surface); border: 2px solid var(--ink-3); }
+  .tl li[data-kind="move"] .tl-dot, .tl li[data-kind="stay"] .tl-dot { display: none; }
+  .tl li[data-kind="move"] .tl-rail::before { background: repeating-linear-gradient(to bottom, var(--line-strong) 0 4px, transparent 4px 8px); }
+  .tl-body { padding-bottom: 12px; min-width: 0; }
+  .tl-main { font-size: 14.5px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+  .tl-sub { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; overflow-wrap: anywhere; }
+  .tl li[data-kind="move"] .tl-sub, .tl li[data-kind="stay"] .tl-sub { padding: 2px 0 2px; }
+  .tl-sep {
+    font-size: 11px; letter-spacing: .08em; color: var(--ink-3); margin: 0 0 8px;
+    padding-top: 12px; border-top: 1px solid var(--line);
+  }
+  #taskRecent .rc { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-flags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .tl-flag {
+    font-size: 11.5px; padding: 2px 9px; border-radius: 999px; cursor: pointer; border: 0;
+    background: var(--amber-soft); color: var(--amber); font-weight: 700;
+  }
+
   /* ---------- 同じ現場の前回の内容 ---------- */
   .prev {
     background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 12px;
@@ -853,14 +935,25 @@
           <span class="card-note" id="crewDate"></span>
         </div>
         <div class="prev" id="crewPrev" hidden></div>
-        <label class="field">
+        <div class="voice" id="voiceRow" hidden>
+          <button class="voice-btn" id="voiceBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            <span id="voiceLabel">声で入力</span>
+          </button>
+          <span class="voice-hint" id="voiceHint">「田中さんと西村さんで天井開口」のように話してください</span>
+        </div>
+        <div class="voice-panel" id="voicePanel" hidden></div>
+        <label class="field" style="margin-bottom:0">
           <span>作業内容</span>
           <input type="text" id="task" maxlength="120" placeholder="例: 天井開口 機器吊り込み 保温取付" autocomplete="off">
         </label>
+        <div class="site-recent" id="taskRecent"></div>
         <div id="crewOwn" class="crew"></div>
         <div id="crewHelp" class="crew"></div>
         <div id="crewOut" class="crew"></div>
       </section>
+
+      <div class="quick" id="tripQuick" hidden></div>
 
       <details class="card" id="tripCard" hidden>
         <summary class="card-head">
@@ -978,6 +1071,12 @@
       </section>
       <input type="file" id="bkFile" accept=".txt,.json,text/plain,application/json" hidden>
     </div>
+  </div>
+  <div class="dock" id="dock" hidden>
+    <button class="dock-key" id="dockKey" data-kind="in">
+      <span class="dock-label" id="dockLabel">出勤</span>
+      <span class="dock-sub" id="dockSub"></span>
+    </button>
   </div>
   <div class="mapmodal" id="mapModal" hidden>
     <div class="mapbox">
@@ -1342,6 +1441,15 @@
       setGeo("ok", "位置情報 記録しました");
       var patch = {};
       patch[target.field] = loc;
+      /* 現場名が空なら、過去に打刻した地点の近くかどうかで現場名を入れる */
+      var rec = records.filter(function (x) { return x.id === target.id; })[0];
+      if (rec && !(rec.place || "").trim()) {
+        var near = nearestPlace(loc, rec.id);
+        if (near) {
+          patch.place = near.place;
+          autoPlaced = { id: rec.id, place: near.place, m: Math.max(10, Math.round(near.km * 100) * 10) };
+        }
+      }
       patchRecord(target.id, patch);
     }).then(function () {
       busy = false;
@@ -1349,6 +1457,25 @@
       render();
       promptAlc(target.field === "outLoc");
     });
+  }
+
+  /* 打刻した地点が、過去に現場名を付けて打刻した地点から200m以内なら、その現場名を返す。
+     位置の誤差が大きい（300m超）ときは取り違えるので使わない。 */
+  var NEAR_KM = 0.2;
+  var autoPlaced = null;
+  function nearestPlace(loc, excludeId) {
+    if (!loc || !(loc.acc <= 300)) return null;
+    var best = null;
+    records.forEach(function (r) {
+      var name = (r.place || "").trim();
+      if (r.id === excludeId || !name) return;
+      [r.inLoc, r.outLoc].forEach(function (p) {
+        if (!p) return;
+        var km = haversineKm(loc, p);
+        if (km <= NEAR_KM && (!best || km < best.km)) best = { place: name, km: km };
+      });
+    });
+    return best;
   }
 
   /* 打刻の直後に、その時点で必要なアルコールチェックが未記録なら知らせる */
@@ -1403,6 +1530,7 @@
       $("roValue").innerHTML = fmtHMS(hold).replace(/:(\d\d)$/, '<span class="sec">:$1</span>');
       $("roSub").textContent = "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
     }
+    renderDock();
   }
 
   /* 打刻の画面と記録の画面を切り替える（縦に長くしないため） */
@@ -1439,10 +1567,64 @@
     renderGate();
     renderView();
     if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); }
+    renderTripQuick();
     renderHistory();
     renderExport();
     renderManual();
     tick();
+  }
+
+  /* ---------- 運行記録を前回と同じ内容で1タップ ---------- */
+  var quickSkipped = "";
+  function renderTripQuick() {
+    var box = $("tripQuick");
+    var today = dateKey(new Date());
+    var t = trips[today] || {};
+    var prevKey = Object.keys(trips).filter(function (d) { return d < today && trips[d].vehicle; }).sort().pop();
+    if (!meName || view !== "punch" || t.vehicle || !prevKey || quickSkipped === today) {
+      box.hidden = true; box.innerHTML = ""; return;
+    }
+    var p = trips[prevKey];
+    var from = p.from || "home", to = p.to || from;
+    box.innerHTML =
+      '<div class="quick-text"><b>運行記録を前回と同じで入れる</b>' +
+      esc(p.vehicle) + " ・ " + BASE_LABEL[from] + "から出発 ・ " + BASE_LABEL[to] + "に帰着" +
+      (manager ? " ・ 確認者 " + esc(manager) : "") + "</div>" +
+      '<button class="btn btn-primary" id="quickUse">同じ内容で入れる</button>' +
+      '<button class="btn" id="quickSkip">今日は違う</button>';
+    box.hidden = false;
+    var openTrip = function () {
+      var card = $("tripCard");
+      card.open = true;
+      setTimeout(function () {
+        try { $("alcBox").scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { $("alcBox").scrollIntoView(); }
+      }, 60);
+    };
+    $("quickUse").addEventListener("click", function () {
+      saveTrip(today, { vehicle: p.vehicle, from: from, to: to });
+      render();
+      openTrip();
+    });
+    $("quickSkip").addEventListener("click", function () {
+      quickSkipped = today;
+      renderTripQuick();
+      $("tripCard").open = true;
+    });
+  }
+
+  /* ---------- 打刻ボタンが画面の外に出たら、下に固定のボタンを出す ---------- */
+  var keyOnScreen = true;
+  function renderDock() {
+    var show = !!meName && view === "punch" && !keyOnScreen;
+    $("dock").hidden = !show;
+    document.body.classList.toggle("has-dock", show);
+    if (!show) return;
+    var act = activeRecord();
+    var place = act ? (act.place || "") : $("place").value.trim();
+    $("dockKey").setAttribute("data-kind", $("key").getAttribute("data-kind"));
+    $("dockLabel").textContent = $("keyLabel").textContent;
+    $("dockSub").textContent = $("keySub").textContent + (place ? " ・ " + place : "");
+    $("dockKey").disabled = $("key").disabled;
   }
 
   function renderPunch() {
@@ -1487,7 +1669,11 @@
     $("siteState").textContent = act
       ? (val ? "この打刻に記録中" : "未入力（勤務中でも入力できます）")
       : (val ? "次の出勤でこの名前を記録します" : "未入力");
-    $("siteHelp").textContent = act
+    var auto = act && autoPlaced && autoPlaced.id === act.id && act.place === autoPlaced.place;
+    if (auto) $("siteState").textContent = "位置から自動で入れました";
+    $("siteHelp").textContent = auto
+      ? "前に「" + autoPlaced.place + "」で打刻した地点から約" + autoPlaced.m + "mの場所なので、この現場名を入れました。違う場合は書き換えてください。"
+      : act
       ? "勤務中でも変更できます。打刻し直す必要はありません。"
       : done
         ? "1日に何件も回るときは、現場ごとに「再出勤」→「退勤」を押してください。前の現場の名前は下の「本日の打刻」から直せます。"
@@ -1581,6 +1767,43 @@
     });
   }
 
+  /* ---------- 今日の動き（時系列） ---------- */
+  function timelineHTML(day) {
+    var c = baseChoice(day.date);
+    var items = [{ kind: "base", main: BASE_LABEL[c.from] + "から出発" }];
+    day.sessions.forEach(function (r, i) {
+      var prev = day.sessions[i - 1];
+      if (prev && prev.outAt) items.push({ kind: "move", sub: "移動 " + fmtHM(r.inAt - prev.outAt) });
+      var crew = Object.keys(CREW).reduce(function (a, k) { return a.concat(sessionCrew(r, k).map(crewText)); }, []);
+      var flags = [];
+      if (!r.place) flags.push(["place", "現場名なし"]);
+      if (!sessionTask(r)) flags.push(["task", "作業内容なし"]);
+      if (!r.manual && !r.inLoc) flags.push(["loc", "出勤の位置なし"]);
+      if (!r.manual && r.outAt && !r.outLoc) flags.push(["loc", "退勤の位置なし"]);
+      items.push({
+        kind: "in", time: clockOf(r.inAt), id: r.id, flags: flags,
+        main: (r.place || "現場名なし") + (isNightSession(r) ? "（夜勤）" : ""),
+        sub: [sessionTask(r), crew.length ? "作業員 " + crew.join("、") : ""].filter(Boolean).join(" ／ ")
+      });
+      items.push(r.outAt
+        ? { kind: "out", time: clockOf(r.outAt), main: "退勤", sub: "拘束 " + fmtHM(r.outAt - r.inAt) }
+        : { kind: "stay", sub: "勤務中 " + fmtHM(Date.now() - r.inAt) });
+    });
+    if (!day.open) items.push({ kind: "base", main: BASE_LABEL[c.to] + "に帰着" });
+    return '<ul class="tl">' + items.map(function (it) {
+      return '<li data-kind="' + it.kind + '">' +
+        '<span class="tl-time mono">' + (it.time || "") + "</span>" +
+        '<span class="tl-rail"><i class="tl-dot"></i></span>' +
+        '<div class="tl-body">' +
+        (it.main ? '<div class="tl-main">' + esc(it.main) + "</div>" : "") +
+        (it.sub ? '<div class="tl-sub">' + esc(it.sub) + "</div>" : "") +
+        (it.flags && it.flags.length ? '<div class="tl-flags">' + it.flags.map(function (f) {
+          return '<button class="tl-flag" data-fix="' + it.id + '" data-what="' + f[0] + '">' + f[1] + "</button>";
+        }).join("") + "</div>" : "") +
+        "</div></li>";
+    }).join("") + "</ul>";
+  }
+
   function renderToday() {
     var now = new Date();
     var today = dayOf(dateKey(now));
@@ -1612,7 +1835,8 @@
         "</div>";
     }).join("");
 
-    tb.innerHTML = blocks +
+    tb.innerHTML = timelineHTML(today) +
+      '<div class="tl-sep">打刻ごとの修正</div>' + blocks +
       '<div class="calc">' +
       '<div class="calc-line"><span>拘束時間' + (many ? "（" + today.sessions.length + "件合計）" : "") +
       '</span><strong class="mono">' + fmtHM(today.holdMs) + (today.open ? "（勤務中）" : "") + "</strong></div>" +
@@ -1630,6 +1854,37 @@
 
     var form = tb.querySelector(".sess-form");
     if (form) bindSessionForm(form);
+
+    /* 時系列の「◯◯なし」を押すと、その打刻の修正欄を開く */
+    Array.prototype.forEach.call(tb.querySelectorAll("[data-fix]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-fix");
+        var what = b.getAttribute("data-what");
+        var tgt = targetSession();
+        if (what === "task" && (!tgt || tgt.id !== id)) {
+          /* 前の打刻の作業内容は、記録の画面のこの日の修正欄で直す */
+          view = "log";
+          openKey = null;
+          render();
+          openKey = today.key;
+          renderHistory();
+          var edTask = document.querySelector('.ed-sess[data-id="' + id + '"] .es-task');
+          if (edTask) {
+            try { edTask.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { edTask.scrollIntoView(); }
+            setTimeout(function () { edTask.focus(); }, 350);
+          }
+          return;
+        }
+        if (what !== "task") editSession = id;
+        renderToday();
+        var el = what === "task" ? $("task")
+          : what === "place" ? tb.querySelector('.sess-place[data-id="' + id + '"]')
+          : tb.querySelector('[data-edit="' + id + '"]');
+        if (!el) return;
+        try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { el.scrollIntoView(); }
+        if (el.tagName === "INPUT") setTimeout(function () { el.focus(); }, 350);
+      });
+    });
 
     Array.prototype.forEach.call(tb.querySelectorAll(".sess-place"), function (inp) {
       inp.addEventListener("change", function () {
@@ -2300,9 +2555,183 @@
     });
   }
 
+  /* ---------- よく使う作業内容 ---------- */
+  /* 同じ現場で使った作業内容を先に、そのあと最近使った順 */
+  function recentTasks(place) {
+    var seen = {}, same = [], other = [];
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      var t = sessionTask(r);
+      if (!t || seen[t]) return;
+      seen[t] = 1;
+      (place && r.place === place ? same : other).push(t);
+    });
+    return same.concat(other).slice(0, 6);
+  }
+  function renderTaskRecent(target) {
+    var box = $("taskRecent");
+    if (!target) { box.innerHTML = ""; return; }
+    var cur = $("task").value.trim();
+    var list = recentTasks(target.place).filter(function (t) { return t !== cur; });
+    box.innerHTML = list.length
+      ? '<span class="rc-label">よく使う作業内容</span>' + list.map(function (t, i) {
+          return '<button class="rc" data-task="' + i + '">' + esc(t) + "</button>";
+        }).join("")
+      : "";
+    Array.prototype.forEach.call(box.querySelectorAll("[data-task]"), function (b) {
+      b.addEventListener("click", function () {
+        $("task").value = list[+b.getAttribute("data-task")];
+        commitTask();
+        renderCrew();
+      });
+    });
+  }
+
+  /* ---------- 声で入力 ----------
+     「田中さんと西村さんで天井開口」→ 過去に入れた作業員の名前と照らして振り分け、残りを作業内容にする。
+     入れる前に必ず確認画面を出す。 */
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var VOICE_HINT = "「田中さんと西村さんで天井開口」のように話してください";
+  var voiceRec = null, voiceText = "", voiceErr = "", voiceDraft = null;
+
+  function normName(s) { return String(s || "").replace(/[\s　]+/g, ""); }
+  function escRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function knownPeople() {
+    var seen = {}, out = [];
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).forEach(function (r) {
+      Object.keys(CREW).forEach(function (kind) {
+        sessionCrew(r, kind).forEach(function (p) {
+          var k = normName(p.name);
+          if (!k || seen[k]) return;
+          seen[k] = 1;
+          out.push({ kind: kind, co: p.co || "", name: p.name });
+        });
+      });
+    });
+    return out;
+  }
+  function parseVoice(text) {
+    var s = normName(text), people = [];
+    var HON = "(?:さん|くん|君|様|氏|ちゃん)?";
+    knownPeople().sort(function (a, b) { return normName(b.name).length - normName(a.name).length; }).forEach(function (p) {
+      var variants = [normName(p.name)];
+      var family = String(p.name).trim().split(/[\s　]+/)[0];
+      if (family && variants.indexOf(family) < 0) variants.push(family);
+      variants.some(function (v) {
+        var re = new RegExp((p.co ? "(?:" + escRe(normName(p.co)) + "の?)?" : "") + escRe(v) + HON);
+        if (!re.test(s)) return false;
+        s = s.replace(re, "、");
+        people.push({ kind: p.kind, co: p.co, name: p.name, on: true });
+        return true;
+      });
+    });
+    /* 初めての名前は「漢字・カタカナ＋さん」だけ拾い、自社として仮に置く（確認画面で直せる） */
+    s = s.replace(/([一-龥々ァ-ヶー]{1,6})(?:さん|くん|君)/g, function (m, name) {
+      people.push({ kind: "own", co: "", name: name, on: true, fresh: true });
+      return "、";
+    });
+    var task = s.replace(/^(今日は|きょうは|本日は)/, "")
+      .split(/[、。,]/).map(function (x) {
+        return x.replace(/^[とでのはがもや]+/, "").replace(/(をしました|をします|しました|します|です|をやりました|やりました)$/, "")
+          .replace(/[とでのはがもや]+$/, "");
+      }).filter(Boolean).join(" ");
+    return { heard: text, task: task, people: people };
+  }
+  function startVoice() {
+    if (voiceRec) { try { voiceRec.stop(); } catch (e) {} return; }
+    var rec;
+    try { rec = new SpeechRec(); } catch (e) { $("voiceHint").textContent = "この端末では音声入力を使えません。"; return; }
+    rec.lang = "ja-JP";
+    rec.interimResults = true;
+    rec.continuous = false;
+    voiceText = ""; voiceErr = ""; voiceDraft = null;
+    $("voicePanel").hidden = true;
+    rec.onresult = function (e) {
+      var s = "";
+      for (var i = 0; i < e.results.length; i++) s += e.results[i][0].transcript;
+      voiceText = s;
+      $("voiceHint").textContent = s || "聞き取り中…";
+    };
+    rec.onerror = function (e) {
+      voiceErr = (e.error === "not-allowed" || e.error === "service-not-allowed")
+        ? "マイクが許可されていません。ブラウザの設定でこのページのマイクを許可してください。"
+        : e.error === "no-speech" ? "声が聞き取れませんでした。もう一度押して話してください。"
+        : e.error === "network" ? "音声入力には電波が必要です。電波のある場所で試してください。"
+        : "音声入力を使えませんでした。";
+    };
+    rec.onend = function () {
+      voiceRec = null;
+      $("voiceBtn").removeAttribute("data-on");
+      $("voiceLabel").textContent = "声で入力";
+      if (voiceText) {
+        voiceDraft = parseVoice(voiceText);
+        $("voiceHint").textContent = VOICE_HINT;
+        renderVoicePanel();
+      } else {
+        $("voiceHint").textContent = voiceErr || VOICE_HINT;
+      }
+    };
+    try { rec.start(); } catch (e) { $("voiceHint").textContent = "音声入力を始められませんでした。"; return; }
+    voiceRec = rec;
+    $("voiceBtn").setAttribute("data-on", "1");
+    $("voiceLabel").textContent = "話し終わったら押す";
+    $("voiceHint").textContent = "聞き取り中…";
+  }
+  function renderVoicePanel() {
+    var box = $("voicePanel");
+    var target = targetSession();
+    if (!voiceDraft || !target) { box.hidden = true; box.innerHTML = ""; return; }
+    var d = voiceDraft;
+    var had = sessionTask(target);
+    box.innerHTML =
+      '<p class="voice-heard">聞き取った内容：<b>' + esc(d.heard) + "</b></p>" +
+      '<label class="field" style="margin-bottom:10px"><span>作業内容' + (had ? "（今の内容と置き換えます）" : "") + "</span>" +
+      '<input type="text" class="vp-task" maxlength="120" value="' + esc(d.task) + '"></label>' +
+      (d.people.length
+        ? d.people.map(function (p, i) {
+            return '<div class="vp-person" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">' +
+              '<input type="checkbox" class="vp-on" data-i="' + i + '"' + (p.on ? " checked" : "") + ' style="width:22px;height:22px;-webkit-appearance:checkbox;appearance:auto">' +
+              '<select class="vp-kind" data-i="' + i + '" style="padding:7px 8px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface)">' +
+              Object.keys(CREW).map(function (k) {
+                return '<option value="' + k + '"' + (k === p.kind ? " selected" : "") + ">" + CREW[k].label.replace(/^.*（|）$/g, "") + "</option>";
+              }).join("") + "</select>" +
+              '<span style="font-size:14px">' + (p.co ? "<small>" + esc(p.co) + "</small> " : "") + esc(p.name) +
+              (p.fresh ? ' <small style="color:var(--amber)">初めての名前</small>' : "") + "</span></div>";
+          }).join("")
+        : '<p class="voice-heard" style="margin:0">作業員の名前は聞き取れませんでした。</p>') +
+      '<div class="editor-actions"><button class="btn btn-primary vp-use">この内容で入れる</button>' +
+      '<button class="btn vp-close">やめる</button></div>';
+    box.hidden = false;
+    Array.prototype.forEach.call(box.querySelectorAll(".vp-on"), function (c) {
+      c.addEventListener("change", function () { d.people[+c.getAttribute("data-i")].on = c.checked; });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll(".vp-kind"), function (s) {
+      s.addEventListener("change", function () { d.people[+s.getAttribute("data-i")].kind = s.value; });
+    });
+    box.querySelector(".vp-close").addEventListener("click", function () { voiceDraft = null; renderVoicePanel(); });
+    box.querySelector(".vp-use").addEventListener("click", function () {
+      var rec = records.filter(function (x) { return x.id === target.id; })[0];
+      if (!rec) return;
+      var crew = rec.crew || { own: [], help: [], out: [] };
+      d.people.forEach(function (p) {
+        if (!p.on) return;
+        var item = { co: CREW[p.kind].co ? p.co : "", name: p.name };
+        crew[p.kind] = crew[p.kind] || [];
+        if (!crew[p.kind].some(function (x) { return sameCrew(x, item); })) crew[p.kind].push(item);
+      });
+      var patch = { crew: crew };
+      var task = box.querySelector(".vp-task").value.trim();
+      if (task) patch.task = task;
+      patchRecord(rec.id, patch);
+      voiceDraft = null;
+      render();
+    });
+  }
+
   function renderCrew() {
     var target = targetSession();
     renderPrev(target);
+    $("voiceRow").hidden = !SpeechRec || !target;
+    if (!voiceRec) renderVoicePanel();
     $("crewDate").textContent = target
       ? (target.place || "現場名未入力") + "　" + clockOf(target.inAt) + "〜"
       : "打刻するとここに入ります";
@@ -2310,6 +2739,7 @@
       "作業内容と作業員" + (target ? "（この現場）" : "");
     $("task").disabled = !target;
     if (document.activeElement !== $("task")) $("task").value = sessionTask(target);
+    renderTaskRecent(target);
 
     Object.keys(CREW).forEach(function (kind) {
       var spec = CREW[kind];
@@ -3086,6 +3516,14 @@
   });
 
   $("key").addEventListener("click", punch);
+  $("dockKey").addEventListener("click", punch);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      keyOnScreen = entries[entries.length - 1].isIntersecting;
+      renderDock();
+    }, { threshold: 0 }).observe($("key"));
+  }
+  if (SpeechRec) $("voiceBtn").addEventListener("click", startVoice);
   $("addName").addEventListener("click", saveName);
   $("newName").addEventListener("keydown", function (e) { if (e.key === "Enter") saveName(); });
   $("meBtn").addEventListener("click", function () {

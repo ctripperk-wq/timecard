@@ -136,6 +136,10 @@
   td.num { text-align: right; font-family: "IBM Plex Mono", monospace; }
   tr:last-child td { border-bottom: 0; }
   tbody tr.total td { font-weight: 700; background: var(--surface-2); }
+  .sub-title { font-size: 15px; font-weight: 700; margin: 22px 0 6px; }
+  td.who { white-space: normal; min-width: 16em; font-size: 12.5px; line-height: 1.55; }
+  td.who small { color: var(--ink-3); }
+  tbody tr.month td { background: var(--surface-2); font-weight: 700; font-size: 12px; color: var(--ink-2); }
 
   .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
   .btn {
@@ -182,12 +186,15 @@
     <div id="lawBox"></div>
     <div id="warnBox"></div>
     <div class="tablewrap"><table id="summary"></table></div>
+    <h3 class="sub-title">訪問先別の人工</h3>
+    <p class="note" style="margin:0 0 8px">1人が1日いっぱい入ると1人工です。1日に複数の訪問先を回った日は、滞在時間で按分しています。応援・外注の方も含みます。</p>
+    <div class="tablewrap"><table id="siteTable"></table></div>
     <div class="actions">
       <button class="btn btn-primary" id="xlsxBtn">Excelファイルで保存</button>
       <button class="btn" id="csvBtn">1つのCSVで保存</button>
       <button class="btn" id="clearBtn">読み込みをやり直す</button>
     </div>
-    <p class="note" id="csvNote">Excelは1つのファイルに「勤怠明細」「月別集計」「運転日誌」の3シートが入ります。勤怠明細は出退勤・拘束・休憩・実働に加え、訪問先名（日勤／夜勤）・業務内容・同行者（自社／応援／外注）。運転日誌は別シートなので、勤怠のシートが横に長くなりません。どのシートもフィルタ付きで、日付は日付として入ります。</p>
+    <p class="note" id="csvNote">Excelは1つのファイルに「勤怠明細」「月別集計」「訪問先別集計」「訪問先別明細」「運転日誌」のシートが入ります。訪問先別明細は、誰がいつどの訪問先に入ったかを1人1行で並べたものです。勤怠明細は出退勤・拘束・休憩・実働に加え、訪問先名（日勤／夜勤）・業務内容・同行者（自社／応援／外注）。運転日誌は別シートなので、勤怠のシートが横に長くなりません。どのシートもフィルタ付きで、日付は日付として入ります。</p>
   </section>
 
   <section class="card" id="blank">
@@ -211,7 +218,7 @@
     "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
     "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
     "指示事項",
-    "出勤地点", "退勤地点", "備考"];
+    "出勤地点", "退勤地点", "備考", "訪問先明細(集計用)"];
   /* 運転日誌シート（道路交通法施行規則 第9条の10 を想定した並び） */
   var TRIP_COLS = ["日付", "曜日", "運転者", "自動車登録番号",
     "運転開始", "運転終了", "出発メーター", "帰着メーター", "運転した距離(km)", "距離の根拠",
@@ -312,6 +319,129 @@
       people: order.sort(function (a, b) { return a.localeCompare(b, "ja"); }).map(function (n) { return people[n]; }),
       months: Object.keys(months).sort()
     };
+  }
+
+  /* ---------- 訪問先別の人工 ----------
+     1人が1日いっぱい入ると1人工。複数の訪問先を回った日は、記録した人の滞在時間で按分する。
+     同じ日・同じ訪問先・同じ人は、複数の社員が記録していても1回だけ数える。 */
+  var KIND_LABEL = { own: "自社", help: "応援", sub: "外注" };
+  var KIND_ORDER = { own: 0, help: 1, sub: 2 };
+  function normName(s) { return String(s || "").replace(/[\s　]+/g, ""); }
+
+  /* 集計用の列が無い古いCSVは、内訳の文字から訪問先と時間だけ拾う（同行者は本人のみ） */
+  function fallbackSessions(o) {
+    var parts = (o["訪問先ごとの内訳"] || "").split(" ／ ").filter(Boolean);
+    var got = parts.map(function (t) {
+      var m = t.match(/^(\d{1,2}:\d{2})-(\S+)\s+(.*?)(?:\((\d+):(\d{2})\))?$/);
+      if (!m) return null;
+      return { place: m[3] === "訪問先名なし" ? "" : m[3], from: m[1], to: m[2], min: m[4] ? (+m[4]) * 60 + (+m[5]) : 0, task: "" };
+    }).filter(Boolean);
+    if (!got.length) got = [{ place: o["訪問先名"] || "", min: 0, task: o["業務内容"] || "" }];
+    if (got.length === 1) {
+      got[0].task = got[0].task || o["業務内容"] || "";
+      got[0].own = (o["同行者(自社)"] || "").split(/[\s　]+/).filter(Boolean).map(function (n) { return { name: n }; });
+    }
+    return got;
+  }
+
+  function siteEntries(list) {
+    var map = {}, out = [];
+    list.forEach(function (o) {
+      var sess = null;
+      if (o["訪問先明細(集計用)"]) { try { sess = JSON.parse(o["訪問先明細(集計用)"]); } catch (e) { sess = null; } }
+      if (!Array.isArray(sess) || !sess.length) sess = fallbackSessions(o);
+      var totalMin = sess.reduce(function (a, s) { return a + (s.min || 0); }, 0);
+      sess.forEach(function (s) {
+        var share = totalMin > 0 ? (s.min || 0) / totalMin : 1 / sess.length;
+        if (!(share > 0)) return;
+        var place = s.place || "（訪問先名なし）";
+        var people = [{ kind: "own", co: "", name: o["社員名"], self: true }];
+        (s.own || []).forEach(function (p) { people.push({ kind: "own", co: "", name: p.name }); });
+        (s.help || []).forEach(function (p) { people.push({ kind: "help", co: p.co || "", name: p.name }); });
+        (s.sub || []).forEach(function (p) { people.push({ kind: "sub", co: p.co || "", name: p.name }); });
+        people.forEach(function (p) {
+          if (!p.name) return;
+          var key = [o["日付"], place, p.kind, normName(p.co), normName(p.name)].join("");
+          var e = map[key];
+          if (!e) {
+            e = map[key] = {
+              month: periodKey(o["日付"]), date: o["日付"], wd: o["曜日"], place: place,
+              kind: p.kind, co: p.co, name: p.name, self: !!p.self,
+              share: 0, hours: 0, night: false, tasks: [], by: []
+            };
+            out.push(e);
+          }
+          if (p.self) { e.self = true; e.name = p.name; }
+          if (share > e.share) { e.share = share; e.hours = o["_hours"] * share; }
+          if (s.night) e.night = true;
+          if (s.task && e.tasks.indexOf(s.task) < 0) e.tasks.push(s.task);
+          if (e.by.indexOf(o["社員名"]) < 0) e.by.push(o["社員名"]);
+        });
+      });
+    });
+
+    /* 自社の「田中」と、本人として記録した「田中 太郎」は同じ人として1つにまとめる */
+    var groups = {};
+    out.forEach(function (e) {
+      if (e.kind !== "own") return;
+      var g = e.date + "" + e.place;
+      (groups[g] = groups[g] || []).push(e);
+    });
+    var drop = [];
+    Object.keys(groups).forEach(function (g) {
+      var selves = groups[g].filter(function (e) { return e.self; });
+      groups[g].forEach(function (e) {
+        if (e.self) return;
+        var n = normName(e.name);
+        var hits = selves.filter(function (x) { var m = normName(x.name); return m.indexOf(n) === 0 || n.indexOf(m) === 0; });
+        if (hits.length !== 1) return;
+        var x = hits[0];
+        if (e.share > x.share) { x.share = e.share; x.hours = e.hours; }
+        e.tasks.forEach(function (t) { if (x.tasks.indexOf(t) < 0) x.tasks.push(t); });
+        e.by.forEach(function (b) { if (x.by.indexOf(b) < 0) x.by.push(b); });
+        drop.push(e);
+      });
+    });
+    out = out.filter(function (e) { return drop.indexOf(e) < 0; });
+
+    out.sort(function (a, b) {
+      return a.date.localeCompare(b.date) || a.place.localeCompare(b.place, "ja") ||
+        KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name, "ja");
+    });
+    return out;
+  }
+
+  function siteSummary(entries) {
+    var map = {}, out = [];
+    entries.forEach(function (e) {
+      var k = e.month + "" + e.place;
+      var s = map[k];
+      if (!s) {
+        s = map[k] = { month: e.month, place: e.place, total: 0, own: 0, help: 0, sub: 0, hours: 0,
+          dates: {}, first: e.date, last: e.date, people: {}, order: [], tasks: [] };
+        out.push(s);
+      }
+      s.total += e.share; s[e.kind] += e.share; s.hours += e.hours;
+      s.dates[e.date] = 1;
+      if (e.date < s.first) s.first = e.date;
+      if (e.date > s.last) s.last = e.date;
+      var who = (e.co ? e.co + " " : "") + e.name;
+      if (!s.people[who]) { s.people[who] = { who: who, kind: e.kind, share: 0 }; s.order.push(who); }
+      s.people[who].share += e.share;
+      e.tasks.forEach(function (t) { if (s.tasks.indexOf(t) < 0) s.tasks.push(t); });
+    });
+    out.forEach(function (s) {
+      s.days = Object.keys(s.dates).length;
+      s.list = s.order.map(function (w) { return s.people[w]; }).sort(function (a, b) {
+        return KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || b.share - a.share;
+      });
+    });
+    out.sort(function (a, b) { return a.month.localeCompare(b.month) || b.total - a.total; });
+    return out;
+  }
+  function r2(n) { return Math.round(n * 100) / 100; }
+  function whoText(s) {
+    return s.list.map(function (p) { return p.who + " " + r2(p.share); }).join("、");
   }
 
   /* ---------- 画面 ---------- */
@@ -415,6 +545,24 @@
       return "<td class='num'>" + fmtH(h) + " <small>(" + d + "日)</small></td>";
     }).join("") + "<td class='num'>" + fmtH(totalHours) + " <small>(" + list.length + "日)</small></td></tr>";
     $("summary").innerHTML = "<thead>" + head + "</thead><tbody>" + body + foot + "</tbody>";
+
+    var sites = siteSummary(siteEntries(list));
+    var lastMonth = "";
+    $("siteTable").innerHTML =
+      "<thead><tr><th>訪問先名</th><th>延べ人工</th><th>自社</th><th>応援</th><th>外注</th><th>日数</th><th>入った人（人工）</th></tr></thead><tbody>" +
+      sites.map(function (s) {
+        var sep = "";
+        if (s.month !== lastMonth) { lastMonth = s.month; sep = "<tr class='month'><td colspan='7'>" + monthLabel(s.month) + "</td></tr>"; }
+        return sep + "<tr><td>" + esc(s.place) + "</td>" +
+          "<td class='num'><b>" + r2(s.total).toFixed(2) + "</b></td>" +
+          "<td class='num'>" + (s.own ? r2(s.own).toFixed(2) : "—") + "</td>" +
+          "<td class='num'>" + (s.help ? r2(s.help).toFixed(2) : "—") + "</td>" +
+          "<td class='num'>" + (s.sub ? r2(s.sub).toFixed(2) : "—") + "</td>" +
+          "<td class='num'>" + s.days + "</td>" +
+          "<td class='who'>" + s.list.map(function (p) {
+            return esc(p.who) + " <small>" + r2(p.share) + "</small>";
+          }).join("、") + "</td></tr>";
+      }).join("") + "</tbody>";
   }
 
   function stat(label, value, unit) {
@@ -570,7 +718,27 @@
       tripRows.push(pad);
     }
 
+    /* 訪問先別：月度×訪問先の合計と、1人1行の明細 */
+    var entries = siteEntries(list);
+    var siteRows = [["月度", "訪問先名", "延べ人工", "自社(人工)", "応援(人工)", "外注(人工)", "延べ時間",
+      "入った日数", "初日", "最終日", "入った人（人工）", "業務内容"]];
+    siteSummary(entries).forEach(function (s) {
+      siteRows.push([monthLabel(s.month), s.place, { n: r2(s.total) },
+        s.own ? { n: r2(s.own) } : "", s.help ? { n: r2(s.help) } : "", s.sub ? { n: r2(s.sub) } : "",
+        { n: r2(s.hours) }, { i: s.days }, { d: s.first }, { d: s.last }, whoText(s), s.tasks.join(" ／ ")]);
+    });
+    var siteDetail = [["月度", "日付", "曜日", "訪問先名", "区分", "会社名", "氏名", "人工", "時間(目安)",
+      "日勤/夜勤", "業務内容", "記録した人"]];
+    entries.forEach(function (e) {
+      siteDetail.push([monthLabel(e.month), { d: e.date }, e.wd, e.place, KIND_LABEL[e.kind], e.co, e.name,
+        { n: r2(e.share) }, { n: r2(e.hours) }, e.night ? "夜勤" : "日勤", e.tasks.join(" ／ "), e.by.join("、")]);
+    });
+
     var sheets = [{ name: "勤怠明細", rows: detail }, { name: "月別集計", rows: summary }];
+    if (siteRows.length > 1) {
+      sheets.push({ name: "訪問先別集計", rows: siteRows });
+      sheets.push({ name: "訪問先別明細", rows: siteDetail });
+    }
     if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
     saveBlob(buildXlsx(sheets), "営業タイムカード集計-" + stamp() + ".xlsx");
   });
