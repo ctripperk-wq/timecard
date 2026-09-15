@@ -254,6 +254,15 @@
   .gate-lead { font-size: 14px; color: var(--ink-2); margin: 0 0 14px; }
   .gate-new { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
   .gate-new label { flex: 1 1 180px; }
+  .gate-move {
+    display: flex; gap: 8px 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--ink-2);
+  }
+  .move-lead { font-size: 13px; color: var(--ink-2); margin: 0 0 12px; line-height: 1.6; }
+  .move-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .move-btns .btn { padding: 11px 14px; font-size: 14px; }
+  .move-btns .btn-primary { flex: 1 1 100%; font-weight: 700; }
 
   /* ---------- status ---------- */
   .statusrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -581,6 +590,23 @@
   .crew-recent:empty { display: none; }
   .crew-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
 
+  /* ---------- 同じ現場の前回の内容 ---------- */
+  .prev {
+    background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 12px;
+    padding: 12px 13px; margin-bottom: 14px;
+  }
+  .prev-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .prev-tag { font-size: 14px; font-weight: 700; color: var(--accent-ink); }
+  :root[data-theme="dark"] .prev-tag { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .prev-tag { color: var(--accent); } }
+  .prev-when { font-size: 12px; color: var(--ink-2); }
+  .prev-list { margin: 0 0 11px; display: grid; gap: 4px; }
+  .prev-list div { display: grid; grid-template-columns: 5.2em 1fr; gap: 8px; font-size: 13.5px; line-height: 1.45; }
+  .prev-list dt { color: var(--ink-2); }
+  .prev-list dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  .prev-actions { display: flex; gap: 8px; }
+  .prev-actions .btn-primary { flex: 1; padding: 12px 14px; font-size: 15px; font-weight: 700; }
+
   .calc { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
   .calc-line {
     display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
@@ -785,6 +811,10 @@
           </label>
           <button class="btn btn-primary" id="addName">はじめる</button>
         </div>
+        <div class="gate-move">
+          <span>機種変更などで、前のスマホの記録を移したい方</span>
+          <button class="btn" id="gateLoad">引っ越しファイルを読み込む</button>
+        </div>
       </section>
 
       <section class="card" id="punchCard" hidden>
@@ -822,6 +852,7 @@
           <h2 class="card-title">作業内容と作業員</h2>
           <span class="card-note" id="crewDate"></span>
         </div>
+        <div class="prev" id="crewPrev" hidden></div>
         <label class="field">
           <span>作業内容</span>
           <input type="text" id="task" maxlength="120" placeholder="例: 天井開口 機器吊り込み 保温取付" autocomplete="off">
@@ -931,6 +962,21 @@
           <a href="./shukei.html">届いたCSVをまとめて集計する（担当者向け）</a>
         </p>
       </section>
+
+      <section class="card" id="moveCard">
+        <div class="card-head">
+          <h2 class="card-title">機種変更・バックアップ</h2>
+          <span class="card-note" id="bkLast"></span>
+        </div>
+        <p class="move-lead">この端末の記録を、すべて1つの「引っ越しファイル」にまとめます。新しいスマホでこのページを開き、「引っ越しファイルを読み込む」を選ぶと記録が元どおりになります。</p>
+        <div class="move-btns">
+          <button class="btn btn-primary" id="bkShare" hidden>LINE・メールで自分に送る</button>
+          <button class="btn" id="bkSave">ファイルに保存</button>
+          <button class="btn" id="bkLoad">引っ越しファイルを読み込む</button>
+        </div>
+        <p class="export-note" id="bkNote">読み込んでも、この端末の記録は消えません。この端末にない分だけが追加されます。</p>
+      </section>
+      <input type="file" id="bkFile" accept=".txt,.json,text/plain,application/json" hidden>
     </div>
   </div>
   <div class="mapmodal" id="mapModal" hidden>
@@ -1468,6 +1514,7 @@
       patchRecord(act.id, { place: $("place").value.trim() });
       renderToday();
       renderHistory();
+      renderPrev(targetSession());
     }
     renderSite();
   }
@@ -2188,8 +2235,74 @@
     return out.slice(0, 8);
   }
 
+  /* 同じ現場名で、作業内容か作業員が入っている直近の打刻 */
+  function previousVisit(target) {
+    if (!target || !target.place) return null;
+    var hit = null;
+    records.slice().sort(function (a, b) { return b.inAt - a.inAt; }).some(function (r) {
+      if (r.id === target.id || r.inAt >= target.inAt || r.place !== target.place) return false;
+      var filled = sessionTask(r) || Object.keys(CREW).some(function (k) { return sessionCrew(r, k).length; });
+      if (filled) hit = r;
+      return !!filled;
+    });
+    return hit;
+  }
+  /* 前回の内容のうち、今回まだ入っていない分だけを返す */
+  function previousAdds(target, prev) {
+    var adds = { task: "", crew: {}, any: false };
+    if (sessionTask(prev) && !sessionTask(target)) { adds.task = sessionTask(prev); adds.any = true; }
+    Object.keys(CREW).forEach(function (kind) {
+      var have = sessionCrew(target, kind);
+      adds.crew[kind] = sessionCrew(prev, kind).filter(function (p) {
+        return !have.some(function (x) { return sameCrew(x, p); });
+      });
+      if (adds.crew[kind].length) adds.any = true;
+    });
+    return adds;
+  }
+  var prevDismissed = {};
+  function renderPrev(target) {
+    var box = $("crewPrev");
+    var prev = previousVisit(target);
+    var adds = prev ? previousAdds(target, prev) : null;
+    if (!prev || !adds.any || prevDismissed[target.id + "|" + target.place]) { box.hidden = true; box.innerHTML = ""; return; }
+    var d = new Date(prev.inAt);
+    var rows = [];
+    if (adds.task) rows.push(["作業内容", adds.task]);
+    var short = { own: "自社", help: "応援", out: "外注" };
+    Object.keys(CREW).forEach(function (kind) {
+      if (adds.crew[kind].length) rows.push([short[kind], adds.crew[kind].map(crewText).join("、")]);
+    });
+    box.innerHTML =
+      '<div class="prev-head"><span class="prev-tag">前回の内容を使う</span>' +
+      '<span class="prev-when">' + (d.getMonth() + 1) + "/" + d.getDate() + "（" + WD[d.getDay()] + "）の" + esc(prev.place) + "</span></div>" +
+      '<dl class="prev-list">' + rows.map(function (x) {
+        return "<div><dt>" + x[0] + "</dt><dd>" + esc(x[1]) + "</dd></div>";
+      }).join("") + "</dl>" +
+      '<div class="prev-actions"><button class="btn btn-primary" id="prevUse">この内容を入れる</button>' +
+      '<button class="btn" id="prevSkip">使わない</button></div>';
+    box.hidden = false;
+    $("prevUse").addEventListener("click", function () {
+      var rec = records.filter(function (x) { return x.id === target.id; })[0];
+      if (!rec) return;
+      var crew = rec.crew || { own: [], help: [], out: [] };
+      Object.keys(CREW).forEach(function (kind) {
+        crew[kind] = (crew[kind] || []).concat(adds.crew[kind]);
+      });
+      var patch = { crew: crew };
+      if (adds.task) patch.task = adds.task;
+      patchRecord(rec.id, patch);
+      render();
+    });
+    $("prevSkip").addEventListener("click", function () {
+      prevDismissed[target.id + "|" + target.place] = true;
+      renderPrev(target);
+    });
+  }
+
   function renderCrew() {
     var target = targetSession();
+    renderPrev(target);
     $("crewDate").textContent = target
       ? (target.place || "現場名未入力") + "　" + clockOf(target.inAt) + "〜"
       : "打刻するとここに入ります";
@@ -2773,6 +2886,23 @@
     });
     return out;
   }
+  /* 集計ページで「どの現場に誰が何時間入ったか」を出すための打刻ごとの明細 */
+  function sessionDetailJson(d) {
+    return JSON.stringify(d.sessions.map(function (r) {
+      var pick = function (kind) {
+        return sessionCrew(r, kind).map(function (p) { return p.co ? { co: p.co, name: p.name } : { name: p.name }; });
+      };
+      return {
+        place: r.place || "",
+        from: clockOf(r.inAt),
+        to: r.outAt ? clockOf(r.outAt) : "",
+        min: r.outAt ? Math.round((r.outAt - r.inAt) / 60000) : 0,
+        night: isNightSession(r),
+        task: sessionTask(r),
+        own: pick("own"), help: pick("help"), sub: pick("out")
+      };
+    }));
+  }
   function buildCsv(month) {
     var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
     var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
@@ -2783,7 +2913,7 @@
       "乗務前_日時", "乗務前_酒気帯び", "乗務前_検知器", "乗務前_方法", "乗務前_数値",
       "乗務後_日時", "乗務後_酒気帯び", "乗務後_検知器", "乗務後_方法", "乗務後_数値",
       "指示事項",
-      "出勤地点", "退勤地点", "備考"];
+      "出勤地点", "退勤地点", "備考", "現場明細(集計用)"];
     var lines = [head.join(",")];
     var total = 0, totalKm = 0;
     list.slice().reverse().forEach(function (d) {
@@ -2834,7 +2964,8 @@
           var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
           if (src) parts.push("位置は" + src);
           return parts.join("・");
-        })()
+        })(),
+        sessionDetailJson(d)
       ]).map(csvCell).join(","));
     });
     /* 合計行は列名で位置を決める（列を足しても崩れないように） */
@@ -3092,6 +3223,126 @@
       $("csvNote").textContent = "ファイル保存ができませんでした。「コピー」をお使いください。";
     });
   });
+
+  /* ---------- 機種変更の引っ越し（全記録を1ファイルにまとめる／読み込む） ---------- */
+  var BK_APP = "genba-timecard-backup";
+  var LS_LASTBK = "genba-timecard-lastbackup-v1";
+
+  function backupText() {
+    return JSON.stringify({
+      app: BK_APP, version: 1, savedAt: Date.now(), name: meName,
+      records: records, trips: trips, bases: bases, manager: manager, lastExportAt: lastExportAt
+    });
+  }
+  function backupFile() {
+    var d = new Date();
+    var name = (meName || "noname").replace(/[\\\/:*?"<>|\s]+/g, "_");
+    var filename = "タイムカード引っ越し_" + name + "_" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".txt";
+    return { name: filename, text: backupText() };
+  }
+  function markBackedUp() {
+    writeLS(LS_LASTBK, Date.now());
+    renderBackup();
+  }
+  function renderBackup() {
+    var at = readLS(LS_LASTBK, 0);
+    if (at) {
+      var d = new Date(at);
+      $("bkLast").textContent = "前回 " + (d.getMonth() + 1) + "/" + d.getDate() + " に保存";
+    } else {
+      $("bkLast").textContent = "まだ保存していません";
+    }
+  }
+  function canShareFile() {
+    try {
+      var f = new File(["x"], "t.txt", { type: "text/plain" });
+      return !!(navigator.share && navigator.canShare && navigator.canShare({ files: [f] }));
+    } catch (e) { return false; }
+  }
+
+  $("bkShare").hidden = !canShareFile();
+  $("bkShare").addEventListener("click", function () {
+    var b = backupFile();
+    var file = new File([b.text], b.name, { type: "text/plain" });
+    navigator.share({ files: [file], title: b.name }).then(markBackedUp)["catch"](function (e) {
+      if (e && e.name === "AbortError") return;
+      $("bkNote").textContent = "送れませんでした。「ファイルに保存」をお使いください。";
+    });
+  });
+  $("bkSave").addEventListener("click", function () {
+    var b = backupFile();
+    try {
+      var url = URL.createObjectURL(new Blob([b.text], { type: "text/plain;charset=utf-8" }));
+      var a = document.createElement("a");
+      a.href = url; a.download = b.name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+      markBackedUp();
+      $("bkNote").textContent = "「" + b.name + "」を保存しました。Googleドライブや LINE の Keep など、スマホの外にも残しておくと安心です。";
+    } catch (e) {
+      $("bkNote").textContent = "保存できませんでした。";
+    }
+  });
+  $("bkLoad").addEventListener("click", function () { $("bkFile").click(); });
+  $("gateLoad").addEventListener("click", function () { $("bkFile").click(); });
+  $("bkFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () { importBackup(String(fr.result || "")); };
+    fr.onerror = function () { alert("ファイルを読み込めませんでした。"); };
+    fr.readAsText(f, "utf-8");
+  });
+
+  function importBackup(text) {
+    var obj = null;
+    try { obj = JSON.parse(text); } catch (e) { obj = null; }
+    if (!obj || obj.app !== BK_APP || !Array.isArray(obj.records)) {
+      alert("このアプリの引っ越しファイルではありません。ファイル名が「タイムカード引っ越し_」で始まるものを選んでください。");
+      return;
+    }
+    var have = {};
+    records.forEach(function (r) { have[r.id] = 1; });
+    var added = obj.records.filter(function (r) { return r && r.id && r.inAt && !have[r.id]; });
+    var saved = new Date(obj.savedAt || 0);
+    var msg = (obj.name ? obj.name + " さんの、" : "") +
+      (saved.getMonth() + 1) + "月" + saved.getDate() + "日に保存した引っ越しファイルです。\n\n" +
+      "打刻 " + obj.records.length + " 件のうち、この端末にない " + added.length + " 件を追加します。\n" +
+      "この端末の記録は消えません。読み込みますか？";
+    if (!confirm(msg)) return;
+
+    records = records.concat(added);
+    /* 運行記録・アルコールチェックは、この端末に無い日と、空いている項目だけを埋める */
+    Object.keys(obj.trips || {}).forEach(function (date) {
+      var inc = obj.trips[date] || {};
+      var cur = trips[date];
+      if (!cur) { trips[date] = inc; return; }
+      Object.keys(inc).forEach(function (k) {
+        if (k === "alc") {
+          cur.alc = cur.alc || {};
+          Object.keys(inc.alc || {}).forEach(function (ak) { if (!cur.alc[ak]) cur.alc[ak] = inc.alc[ak]; });
+        } else if (cur[k] == null || cur[k] === "") {
+          cur[k] = inc[k];
+        }
+      });
+    });
+    Object.keys(obj.bases || {}).forEach(function (k) { if (!bases[k]) bases[k] = obj.bases[k]; });
+    if (!manager && obj.manager) manager = obj.manager;
+    if (!meName && obj.name) meName = obj.name;
+    if ((obj.lastExportAt || 0) > lastExportAt) lastExportAt = obj.lastExportAt;
+    records.forEach(function (r) { if (!r.empName && meName) r.empName = meName; });
+
+    saveRecords();
+    writeLS(LS_TRIP, trips);
+    writeLS(LS_BASE, bases);
+    writeLS(LS_MGR, manager);
+    writeLS(LS_ME, meName);
+    writeLS(LS_EXPORT, lastExportAt);
+    alert(added.length + " 件の打刻を追加しました。");
+    location.reload();
+  }
+  renderBackup();
 
   var ua = navigator.userAgent;
   var isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
