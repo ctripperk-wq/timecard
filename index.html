@@ -672,6 +672,64 @@
     background: var(--amber-soft); color: var(--amber); font-weight: 700;
   }
 
+  /* ---------- 段取りが届いた／退勤の押し忘れ ---------- */
+  .inbox { border: 2px solid var(--accent); }
+  .forgot { border: 2px solid var(--out); }
+  .forgot .card-title { color: var(--out); }
+  .forgot-lead { font-size: 14px; margin: 0 0 12px; line-height: 1.6; }
+  .forgot-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .forgot-row > span { font-size: 14px; font-weight: 700; }
+  .forgot .tf input { font-size: 22px; width: 3.2em; padding: 8px 6px; text-align: center; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); }
+  .forgot .prev-actions { margin-top: 12px; }
+  .forgot .btn-primary { background: var(--out); color: var(--on-out); }
+
+  /* ---------- 段取りを配る ---------- */
+  .plan-days { margin-bottom: 12px; }
+  .plan-field { display: block; margin-bottom: 10px; }
+  .plan-field > span { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+  .plan-field input, .plan-paste textarea {
+    width: 100%; padding: 10px 11px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .plan-field .site-recent { margin-top: 6px; }
+  .plan-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .plan-actions .btn { padding: 11px 14px; font-size: 14px; }
+  .plan-actions .btn-primary { flex: 1 1 160px; font-weight: 700; }
+  .plan-paste { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .plan-paste textarea { height: 70px; resize: vertical; font-size: 16px; }
+  .plan-note { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.55; }
+
+  /* ---------- 締めチェック ---------- */
+  .close { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+  .close.has { background: var(--amber-soft); }
+  .close.ok { background: var(--accent-soft); }
+  .close-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .close-head b { font-size: 15px; }
+  .close-head span { font-size: 12.5px; color: var(--ink-2); }
+  .close-lead { font-size: 13px; margin: 6px 0 8px; line-height: 1.55; }
+  .close-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .close-day {
+    width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+    text-align: left; cursor: pointer; padding: 9px 11px; border-radius: 9px;
+    background: var(--surface); border: 1px solid var(--line); color: var(--ink);
+  }
+  .close-day b { font-size: 13.5px; white-space: nowrap; }
+  .close-day span { font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+  .close-day i { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--accent); }
+  .close .prev-actions { margin-top: 10px; }
+
+  /* ---------- メーターを写真で読む ---------- */
+  .odo-cam { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: -4px 0 12px; }
+  .odo-cam .btn { font-size: 12.5px; padding: 9px 8px; }
+  .ocr-stage { background: #000; display: flex; justify-content: center; overflow: hidden; }
+  #ocrCanvas { display: block; max-width: 100%; touch-action: none; cursor: crosshair; }
+  .ocr-foot { padding: 10px 14px 14px; }
+  .ocr-note { font-size: 13px; margin: 0 0 8px; line-height: 1.55; }
+  .ocr-cands { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ocr-cands:empty { display: none; }
+  .ocr-cands .btn { font-size: 18px; font-weight: 700; padding: 10px 16px; font-family: "IBM Plex Mono", monospace; }
+  .ocr-cands .btn.best { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+
   /* ---------- 同じ現場の前回の内容 ---------- */
   .prev {
     background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 12px;
@@ -883,6 +941,9 @@
 
   <div class="grid">
     <div class="col-left">
+      <section class="card inbox" id="planInbox" hidden></section>
+      <section class="card forgot" id="forgotCard" hidden></section>
+      <div class="quick" id="closeQuick" hidden></div>
       <section class="card" id="gate" hidden>
         <div class="card-head"><h2 class="card-title">はじめに</h2></div>
         <p class="gate-lead">お名前を登録してください。記録はこの端末の中だけに保存され、CSVに名前が入ります。</p>
@@ -990,6 +1051,11 @@
           <label><span>出発メーター km</span><input type="number" id="odoStart" min="0" step="1" inputmode="numeric" placeholder="例: 45210"></label>
           <label><span>帰着メーター km</span><input type="number" id="odoEnd" min="0" step="1" inputmode="numeric" placeholder="例: 45268"></label>
         </div>
+        <div class="odo-cam">
+          <button class="btn" data-cam="odoStart">出発メーターを写真で読む</button>
+          <button class="btn" data-cam="odoEnd">帰着メーターを写真で読む</button>
+        </div>
+        <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
         <p class="gps-note" id="odoNote" hidden></p>
 
         <div class="alc" id="alcBox"></div>
@@ -1003,6 +1069,14 @@
           <span class="sum-val" id="todaySum"></span>
         </summary>
         <div id="todayBody"></div>
+      </details>
+
+      <details class="card" id="planCard" hidden>
+        <summary class="card-head">
+          <h2 class="card-title">段取りを配る</h2>
+          <span class="sum-val" id="planSum"></span>
+        </summary>
+        <div id="planBody"></div>
       </details>
     </div>
 
@@ -1077,6 +1151,22 @@
       <span class="dock-label" id="dockLabel">出勤</span>
       <span class="dock-sub" id="dockSub"></span>
     </button>
+  </div>
+  <div class="mapmodal" id="ocrModal" hidden>
+    <div class="mapbox">
+      <div class="maphead">
+        <strong id="ocrTitle">メーターの数字を囲む</strong>
+        <button class="btn" id="ocrCancel">やめる</button>
+      </div>
+      <div class="ocr-stage"><canvas id="ocrCanvas"></canvas></div>
+      <div class="ocr-foot">
+        <p class="ocr-note" id="ocrNote">走行距離の数字だけを、指でなぞって四角で囲んでください。</p>
+        <div class="ocr-cands" id="ocrCands"></div>
+        <div class="editor-actions" style="margin-top:8px">
+          <button class="btn btn-primary" id="ocrRead">囲んだ所を読む</button>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="mapmodal" id="mapModal" hidden>
     <div class="mapbox">
@@ -1406,6 +1496,15 @@
     if (!meName) return;
     /* 指が滑って二度押ししても1回しか打刻しない */
     if (busy || Date.now() - lastPunchAt < 2000) return;
+    /* 前の日の退勤が押されていないまま押すと、何十時間もの勤務になってしまう */
+    if (forgottenRecord()) {
+      var fc = $("forgotCard");
+      window.scrollTo(0, 0);
+      fc.classList.remove("flash");
+      void fc.offsetWidth;
+      fc.classList.add("flash");
+      return;
+    }
     lastPunchAt = Date.now();
     var act = activeRecord();
     busy = true;
@@ -1420,19 +1519,25 @@
       /* 次の現場を入力できるように空にする */
       $("place").value = "";
     } else {
-      target = {
-        id: createRecord({
-          date: dateKey(new Date(now)),
-          empName: meName,
-          inAt: now,
-          outAt: null,
-          breakMin: BREAK_DEFAULT,
-          place: $("place").value.trim(),
-          inLoc: null,
-          outLoc: null
-        }),
-        field: "inLoc"
+      var rec0 = {
+        date: dateKey(new Date(now)),
+        empName: meName,
+        inAt: now,
+        outAt: null,
+        breakMin: BREAK_DEFAULT,
+        place: $("place").value.trim(),
+        inLoc: null,
+        outLoc: null
       };
+      /* 段取りの現場で出勤したら、作業内容とメンバーも入れる */
+      var plan = todayPlan();
+      if (plan && plan.p && rec0.place === plan.p) {
+        if (plan.t) rec0.task = plan.t;
+        rec0.crew = crewFromPlan(plan);
+        plan.used = true;
+        savePlans();
+      }
+      target = { id: createRecord(rec0), field: "inLoc" };
     }
     render();
 
@@ -1499,6 +1604,7 @@
     $("crewCard").hidden = showGate;
     $("tripCard").hidden = showGate;
     $("todayCard").hidden = showGate;
+    $("planCard").hidden = showGate;
     $("meBtn").hidden = showGate;
     if (meName) $("meBtn").textContent = meName + " ▾";
   }
@@ -1566,7 +1672,10 @@
     pendingRender = false;
     renderGate();
     renderView();
-    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); }
+    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); renderPlanSum(); }
+    renderPlanInbox();
+    renderForgot();
+    renderCloseQuick();
     renderTripQuick();
     renderHistory();
     renderExport();
@@ -1632,7 +1741,14 @@
     var today = dayOf(dateKey(new Date()));
     var pill = $("pill");
 
-    if (act) {
+    if (act && forgottenRecord()) {
+      pill.setAttribute("data-state", "working");
+      $("pillText").textContent = "退勤の押し忘れ";
+      $("keyLabel").textContent = "退勤を直す";
+      $("key").setAttribute("data-kind", "out");
+      $("roLabel").textContent = "経過時間";
+      $("hint").textContent = "上の欄で、前の日に退勤した時刻を入れてください。";
+    } else if (act) {
       pill.setAttribute("data-state", "working");
       $("pillText").textContent = "勤務中";
       $("keyLabel").textContent = "退勤";
@@ -1662,16 +1778,28 @@
     var input = $("place");
     /* 入力中は横取りしない */
     if (document.activeElement !== input && act) input.value = act.place || "";
-    var val = input.value.trim();
     var done = today && !act ? today.sessions.length : 0;
+    /* 今日の段取りがあれば、最初の出勤の前に現場名を1回だけ入れておく */
+    var plan = todayPlan();
+    var planKey = dateKey(new Date());
+    if (plan && plan.p && !act && !done && planFilledFor !== planKey && document.activeElement !== input && !input.value.trim()) {
+      input.value = plan.p;
+      planFilledFor = planKey;
+    }
+    var val = input.value.trim();
 
     $("siteLabel").textContent = act ? "いまいる現場" : done ? "次に行く現場" : "今日の現場";
     $("siteState").textContent = act
       ? (val ? "この打刻に記録中" : "未入力（勤務中でも入力できます）")
       : (val ? "次の出勤でこの名前を記録します" : "未入力");
     var auto = act && autoPlaced && autoPlaced.id === act.id && act.place === autoPlaced.place;
+    var fromPlan = plan && !act && !done && val && val === plan.p;
     if (auto) $("siteState").textContent = "位置から自動で入れました";
-    $("siteHelp").textContent = auto
+    if (fromPlan) $("siteState").textContent = "段取りから入れました";
+    $("siteHelp").textContent = fromPlan
+      ? (plan.by && plan.by !== meName ? plan.by + " さんの" : "") + "段取りです。出勤を押すと" +
+        (plan.t ? "作業内容「" + plan.t + "」と" : "") + "メンバーも入ります。"
+      : auto
       ? "前に「" + autoPlaced.place + "」で打刻した地点から約" + autoPlaced.m + "mの場所なので、この現場名を入れました。違う場合は書き換えてください。"
       : act
       ? "勤務中でも変更できます。打刻し直す必要はありません。"
@@ -1950,34 +2078,38 @@
   }
 
   /* 法定記録として欠けている項目を洗い出す */
-  function missingDays() {
-    var today = dateKey(new Date());
-    return days().filter(function (d) { return !d.open; }).map(function (d) {
-      var t = tripOf(d.date);
-      var lack = [];
-      if (!t.vehicle) lack.push("車両");
-      if (odoDistance(d.date) == null) lack.push("メーター");
-      else if (t.odoEstimated) lack.push("距離が推定のまま");
-      if (!alcOf(d.date, "pre")) lack.push("乗務前チェック");
-      if (!alcOf(d.date, "post")) lack.push("乗務後チェック");
-      return lack.length ? { date: d.date, lack: lack, today: d.date === today } : null;
-    }).filter(Boolean);
-  }
-
+  /* 締めチェック：締めの月度で直すところを日ごとに並べ、押すとその日の修正欄を開く */
   function renderMissing() {
     var host = $("missingBanner");
-    var miss = missingDays();
-    if (!miss.length) { host.innerHTML = ""; return; }
-    host.innerHTML = '<div class="banner" style="display:block">' +
-      "<b>運行記録に未記入があります（" + miss.length + "日分）</b>" +
-      '<ul style="margin:6px 0 0;padding-left:1.2em">' +
-      miss.slice(0, 5).map(function (m) {
-        return "<li>" + m.date.slice(5).replace("-", "/") + (m.today ? "（本日）" : "") +
-          " … " + m.lack.join("・") + "</li>";
-      }).join("") +
-      (miss.length > 5 ? "<li>ほか " + (miss.length - 5) + "日分</li>" : "") +
-      "</ul>" +
-      '<p style="margin:8px 0 0;font-size:11.5px">日付の行をタップすると、その日の運行記録を直せます。</p></div>';
+    if (!meName || !days().length) { host.innerHTML = ""; return; }
+    var tg = closeTarget();
+    var near = tg.closed || tg.left <= 5;
+    var list = closeIssues(tg.key);
+    var n = list.reduce(function (a, x) { return a + x.items.length; }, 0);
+    if (!n && !near) { host.innerHTML = ""; return; }
+    var shown = list.slice().reverse().slice(0, 8);
+    host.innerHTML = '<div class="close ' + (n ? "has" : "ok") + '">' +
+      '<div class="close-head"><b>締めチェック　' + periodName(tg.key) + "</b><span>" + closeWhen(tg) + "</span></div>" +
+      (n
+        ? '<p class="close-lead">直すところが ' + n + " 件あります。日付を押すと、その日の修正欄が開きます。</p>" +
+          '<ul class="close-list">' + shown.map(function (x) {
+            return '<li><button class="close-day" data-key="' + esc(x.key) + '"><b>' + dayLabel(x.date) + "</b>" +
+              "<span>" + esc(x.items.join("・")) + "</span><i>直す</i></button></li>";
+          }).join("") + "</ul>" +
+          (list.length > shown.length ? '<p class="close-lead" style="margin:6px 0 0">ほか ' + (list.length - shown.length) + " 日分</p>" : "")
+        : '<p class="close-lead">' + periodName(tg.key) + "の記録はそろっています。CSVを書き出して担当者に送ってください。</p>") +
+      (near ? '<div class="prev-actions"><button class="btn' + (n ? "" : " btn-primary") + '" id="closeExport">' +
+        (n ? "このままCSVを書き出す" : "CSVを書き出す") + "</button></div>" : "") +
+      "</div>";
+    Array.prototype.forEach.call(host.querySelectorAll(".close-day"), function (b) {
+      b.addEventListener("click", function () {
+        openKey = b.getAttribute("data-key");
+        renderHistory();
+        var ed = $("history").querySelector(".editor");
+        if (ed) { try { ed.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { ed.scrollIntoView(); } }
+      });
+    });
+    if ($("closeExport")) $("closeExport").addEventListener("click", function () { openExportFor(tg.key); });
   }
 
   function renderHistory() {
@@ -3391,6 +3523,7 @@
         (function () {
           var parts = [];
           if (d.sessions.some(function (r) { return r.manual; })) parts.push("手入力");
+          if (d.sessions.some(function (r) { return r.outFixed; })) parts.push("退勤は押し忘れを後から補完");
           var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
           if (src) parts.push("位置は" + src);
           return parts.join("・");
@@ -3465,8 +3598,617 @@
     $("exportPanel").scrollIntoView({ block: "nearest" });
   }
 
+  /* ================= 段取りリンク =================
+     班長が翌日の現場・作業内容・メンバーをリンクにしてLINEで配る。
+     リンクの中身は # の後ろにあるので、サーバーには送られない。 */
+  var LS_PLAN = "genba-timecard-plans-v1";
+  var plans = {};
+  var planInbox = null;
+  var planDayOffset = 1;
+  var planFilledFor = "";
+
+  function b64encode(str) {
+    return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function b64decode(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    return decodeURIComponent(escape(atob(s)));
+  }
+  /* リンクから来た中身は信用せず、形と長さを整えてから使う */
+  function cleanPlan(o) {
+    if (!o || o.v !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(o.d || "")) return null;
+    var str = function (v, n) { return String(v == null ? "" : v).slice(0, n).trim(); };
+    var people = function (list, withCo) {
+      return (Array.isArray(list) ? list : []).slice(0, 30).map(function (p) {
+        return { co: withCo ? str(p && p.co, 30) : "", name: str(p && p.name, 20) };
+      }).filter(function (p) { return p.name; });
+    };
+    var c = o.c || {};
+    return {
+      v: 1, d: o.d, p: str(o.p, 40), t: str(o.t, 120), m: str(o.m, 120), by: str(o.by, 20),
+      c: { own: people(c.own, false), help: people(c.help, true), out: people(c.out, true) }
+    };
+  }
+  function planUrl(plan) {
+    /* openExternalBrowser=1 で、LINEの中ではなくいつものブラウザで開く */
+    return location.origin + location.pathname + "?openExternalBrowser=1#plan=" + b64encode(JSON.stringify(plan));
+  }
+  function planFromText(text) {
+    var m = String(text || "").match(/#plan=([A-Za-z0-9_-]+)/);
+    if (!m) return null;
+    try { return cleanPlan(JSON.parse(b64decode(m[1]))); } catch (e) { return null; }
+  }
+  function samePerson(a, b) {
+    var x = normName(a), y = normName(b);
+    return !!x && !!y && (x === y || x.indexOf(y) === 0 || y.indexOf(x) === 0);
+  }
+  /* 自分の打刻に入れる作業員。本人は除き、段取りを作った人を自社に加える。 */
+  function crewFromPlan(plan) {
+    var crew = { own: [], help: plan.c.help.slice(), out: plan.c.out.slice() };
+    plan.c.own.forEach(function (p) {
+      if (!samePerson(p.name, meName)) crew.own.push({ co: "", name: p.name });
+    });
+    if (plan.by && !samePerson(plan.by, meName) &&
+        !crew.own.some(function (p) { return samePerson(p.name, plan.by); })) {
+      crew.own.unshift({ co: "", name: plan.by });
+    }
+    return crew;
+  }
+  function planPeopleText(plan) {
+    var names = [];
+    if (plan.by) names.push(plan.by);
+    plan.c.own.forEach(function (p) { if (!samePerson(p.name, plan.by)) names.push(p.name); });
+    plan.c.help.concat(plan.c.out).forEach(function (p) { names.push(crewText(p)); });
+    return names.join("、");
+  }
+  function dayLabel(dateStr) {
+    var d = parseKey(dateStr);
+    return (d.getMonth() + 1) + "/" + d.getDate() + "（" + WD[d.getDay()] + "）";
+  }
+  function savePlans() { writeLS(LS_PLAN, plans); }
+  function todayPlan() {
+    var p = plans[dateKey(new Date())];
+    return p && !p.used ? p : null;
+  }
+  function clearPlanHash() {
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  }
+  function planListHTML(p) {
+    return '<dl class="prev-list">' + [
+      ["日付", dayLabel(p.d)], ["現場", p.p || "（未定）"], ["作業内容", p.t],
+      ["メンバー", planPeopleText(p)], ["メモ", p.m]
+    ].filter(function (x) { return x[1]; }).map(function (x) {
+      return "<div><dt>" + x[0] + "</dt><dd>" + esc(x[1]) + "</dd></div>";
+    }).join("") + "</dl>";
+  }
+
+  function renderPlanInbox() {
+    var box = $("planInbox");
+    if (!planInbox) { box.hidden = true; box.innerHTML = ""; return; }
+    var p = planInbox;
+    var past = p.d < dateKey(new Date());
+    var replace = plans[p.d] && !plans[p.d].used;
+    box.innerHTML =
+      '<div class="card-head"><h2 class="card-title">段取りが届きました</h2>' +
+      '<span class="card-note">' + (p.by ? esc(p.by) + " さんから" : "") + "</span></div>" +
+      planListHTML(p) +
+      '<p class="plan-note" style="margin:0 0 10px">' + (past
+        ? "過ぎた日の段取りなので、入れられません。"
+        : (replace ? "同じ日に入っている段取りと置き換えます。" : "") +
+          "入れておくと、その日は出勤を押すだけで現場名・作業内容・作業員が入ります。") + "</p>" +
+      '<div class="prev-actions">' +
+      (past ? "" : '<button class="btn btn-primary" id="inboxYes">予定に入れる</button>') +
+      '<button class="btn" id="inboxNo">' + (past ? "閉じる" : "入れない") + "</button></div>";
+    box.hidden = false;
+    if ($("inboxYes")) {
+      $("inboxYes").addEventListener("click", function () {
+        plans[p.d] = p;
+        savePlans();
+        planInbox = null;
+        clearPlanHash();
+        render();
+      });
+    }
+    $("inboxNo").addEventListener("click", function () {
+      planInbox = null;
+      clearPlanHash();
+      renderPlanInbox();
+    });
+  }
+
+  function renderPlanSum() {
+    var today = dateKey(new Date());
+    var next = Object.keys(plans).filter(function (d) { return d >= today && !plans[d].used; }).sort();
+    $("planSum").textContent = next.length
+      ? "予定 " + next.map(function (d) { return dayLabel(d).replace(/（.）/, "") + " " + (plans[d].p || "現場未定"); }).join("、")
+      : "明日の段取りをLINEで配れます";
+  }
+
+  function buildPlanBody() {
+    var chips = function (list, attr) {
+      return list.map(function (v) { return '<button class="rc" ' + attr + '="' + esc(v) + '">' + esc(v) + "</button>"; }).join("");
+    };
+    var crewChips = function (kind) {
+      return recentCrew(kind).map(function (p) {
+        return '<button class="rc" data-pl-add="' + kind + '" data-v="' + esc(CREW[kind].co && p.co ? p.co + ", " + p.name : p.name) + '">' +
+          esc(crewText(p)) + "</button>";
+      }).join("");
+    };
+    $("planBody").innerHTML =
+      '<div class="seg plan-days" id="plDays">' +
+      '<button data-off="0">今日</button><button data-off="1">明日</button><button data-off="2">あさって</button></div>' +
+      '<label class="plan-field"><span>現場名</span><input type="text" id="plPlace" maxlength="40" autocomplete="off">' +
+      '<div class="site-recent">' + chips(recentPlaces().slice(0, 6), "data-pl-place") + "</div></label>" +
+      '<label class="plan-field"><span>作業内容</span><input type="text" id="plTask" maxlength="120" autocomplete="off">' +
+      '<div class="site-recent">' + chips(recentTasks("").slice(0, 6), "data-pl-task") + "</div></label>" +
+      Object.keys(CREW).map(function (kind) {
+        var id = { own: "plOwn", help: "plHelp", out: "plOut" }[kind];
+        return '<label class="plan-field"><span>' + CREW[kind].label +
+          (CREW[kind].co ? "（「会社名, 名前」を空白で区切る）" : "（空白で区切る）") + "</span>" +
+          '<input type="text" id="' + id + '" maxlength="200" autocomplete="off">' +
+          '<div class="site-recent">' + crewChips(kind) + "</div></label>";
+      }).join("") +
+      '<label class="plan-field"><span>メモ（集合時刻・持ち物など）</span><input type="text" id="plMemo" maxlength="120" autocomplete="off"></label>' +
+      '<div class="plan-actions">' +
+      '<button class="btn btn-primary" id="plSend">LINEで送る</button>' +
+      '<button class="btn" id="plCopy">文面をコピー</button>' +
+      '<button class="btn" id="plFromToday">今日の内容を写す</button></div>' +
+      '<p class="plan-note" id="plNote">送ると、自分のタイムカードにも同じ予定が入ります。自分の名前はメンバーに入れなくて大丈夫です。</p>' +
+      '<div class="plan-paste"><label class="plan-field" style="margin-bottom:6px"><span>届いた段取りを貼り付ける</span>' +
+      '<textarea id="plPaste" placeholder="LINEで届いた段取りのメッセージをコピーして、ここに貼り付けます"></textarea></label>' +
+      '<button class="btn" id="plPasteBtn">貼り付けた段取りを読み込む</button>' +
+      '<p class="plan-note">iPhoneでホーム画面から使っている方は、リンクを押しても別の画面で開くことがあります。そのときはメッセージをコピーして、ここに貼り付けてください。</p></div>';
+
+    var body = $("planBody");
+    var setDays = function (off) {
+      planDayOffset = off;
+      Array.prototype.forEach.call(body.querySelectorAll("#plDays button"), function (b) {
+        b.classList.toggle("on", +b.getAttribute("data-off") === off);
+        b.setAttribute("aria-pressed", +b.getAttribute("data-off") === off ? "true" : "false");
+      });
+    };
+    setDays(planDayOffset);
+    Array.prototype.forEach.call(body.querySelectorAll("#plDays button"), function (b) {
+      b.addEventListener("click", function (e) { e.preventDefault(); setDays(+b.getAttribute("data-off")); });
+    });
+    var bindChip = function (sel, fn) {
+      Array.prototype.forEach.call(body.querySelectorAll(sel), function (b) {
+        b.addEventListener("click", function (e) { e.preventDefault(); fn(b); });
+      });
+    };
+    bindChip("[data-pl-place]", function (b) { $("plPlace").value = b.getAttribute("data-pl-place"); });
+    bindChip("[data-pl-task]", function (b) { $("plTask").value = b.getAttribute("data-pl-task"); });
+    bindChip("[data-pl-add]", function (b) {
+      var inp = $({ own: "plOwn", help: "plHelp", out: "plOut" }[b.getAttribute("data-pl-add")]);
+      var v = b.getAttribute("data-v");
+      if ((" " + inp.value + " ").indexOf(" " + v + " ") < 0) inp.value = (inp.value.trim() + " " + v).trim();
+    });
+    $("plFromToday").addEventListener("click", function () {
+      var t = targetSession();
+      if (!t) { $("plNote").textContent = "今日の打刻がまだありません。"; return; }
+      $("plPlace").value = t.place || "";
+      $("plTask").value = sessionTask(t);
+      $("plOwn").value = sessionCrew(t, "own").map(function (p) { return p.name; }).join(" ");
+      $("plHelp").value = sessionCrew(t, "help").map(function (p) { return p.co ? p.co + ", " + p.name : p.name; }).join(" ");
+      $("plOut").value = sessionCrew(t, "out").map(function (p) { return p.co ? p.co + ", " + p.name : p.name; }).join(" ");
+    });
+    var readForm = function () {
+      var d = new Date();
+      d.setDate(d.getDate() + planDayOffset);
+      return cleanPlan({
+        v: 1, d: dateKey(d), p: $("plPlace").value, t: $("plTask").value, m: $("plMemo").value, by: meName,
+        c: { own: parseCrew($("plOwn").value, false), help: parseCrew($("plHelp").value, true), out: parseCrew($("plOut").value, true) }
+      });
+    };
+    var message = function (plan) {
+      return "【段取り】" + dayLabel(plan.d) + "\n" +
+        (plan.p ? "現場：" + plan.p + "\n" : "") +
+        (plan.t ? "作業内容：" + plan.t + "\n" : "") +
+        "メンバー：" + planPeopleText(plan) + "\n" +
+        (plan.m ? "メモ：" + plan.m + "\n" : "") +
+        "\n下のリンクを押すと、タイムカードに予定が入ります。\n" + planUrl(plan);
+    };
+    var prepare = function () {
+      var plan = readForm();
+      if (!plan.p) { $("plNote").textContent = "現場名を入れてください。"; $("plPlace").focus(); return null; }
+      plans[plan.d] = plan;
+      savePlans();
+      render();
+      return plan;
+    };
+    $("plSend").addEventListener("click", function () {
+      var plan = prepare();
+      if (!plan) return;
+      var text = message(plan);
+      var openLine = function () { window.open("https://line.me/R/share?text=" + encodeURIComponent(text), "_blank", "noopener"); };
+      $("plNote").textContent = dayLabel(plan.d) + "の段取りを自分の予定にも入れました。";
+      if (navigator.share) {
+        navigator.share({ text: text })["catch"](function (e) { if (!e || e.name !== "AbortError") openLine(); });
+      } else {
+        openLine();
+      }
+    });
+    $("plCopy").addEventListener("click", function () {
+      var plan = prepare();
+      if (!plan) return;
+      var text = message(plan);
+      var done = function () { $("plNote").textContent = "文面をコピーしました。LINEに貼り付けて送ってください。"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done)["catch"](function () { $("plPaste").value = text; $("plNote").textContent = "下の欄に文面を出しました。長押ししてコピーしてください。"; });
+      } else {
+        $("plPaste").value = text;
+        $("plNote").textContent = "下の欄に文面を出しました。長押ししてコピーしてください。";
+      }
+    });
+    $("plPasteBtn").addEventListener("click", function () {
+      var p = planFromText($("plPaste").value);
+      if (!p) { $("plNote").textContent = "段取りのリンクが見つかりませんでした。メッセージ全体を貼り付けてください。"; return; }
+      $("plPaste").value = "";
+      planInbox = p;
+      renderPlanInbox();
+      window.scrollTo(0, 0);
+    });
+  }
+
+  /* ================= 退勤の押し忘れ ================= */
+  var FORGOT_HOURS = 14;
+  function forgottenRecord() {
+    var act = activeRecord();
+    return act && Date.now() - act.inAt > FORGOT_HOURS * 3600000 ? act : null;
+  }
+  function median(list) {
+    if (!list.length) return null;
+    var a = list.slice().sort(function (x, y) { return x - y; });
+    return a[Math.floor(a.length / 2)];
+  }
+  /* その現場でふだん退勤している時刻（無ければ全体のふだんの時刻）から、退勤時刻の候補を出す */
+  function suggestOut(rec) {
+    var done = records.filter(function (r) { return r.outAt && r.id !== rec.id && !isNightSession(r); });
+    var same = done.filter(function (r) { return rec.place && r.place === rec.place; });
+    var pool = same.length ? same : done;
+    var m = median(pool.map(function (r) { var d = new Date(r.outAt); return d.getHours() * 60 + d.getMinutes(); }));
+    var base = new Date(rec.inAt);
+    var at = m == null ? null : new Date(base.getFullYear(), base.getMonth(), base.getDate(), Math.floor(m / 60), m % 60).getTime();
+    var byClock = at != null && at > rec.inAt + 30 * 60000;
+    if (!byClock) at = rec.inAt + (median(pool.map(function (r) { return r.outAt - r.inAt; })) || 8 * 3600000);
+    return { at: Math.min(at, Date.now()), same: same.length > 0, byClock: byClock };
+  }
+  function renderForgot() {
+    var box = $("forgotCard");
+    var rec = meName && view === "punch" ? forgottenRecord() : null;
+    if (!rec) { box.hidden = true; box.innerHTML = ""; box.removeAttribute("data-id"); return; }
+    if (box.getAttribute("data-id") === rec.id) return;   /* 入力中に作り直さない */
+    var s = suggestOut(rec);
+    box.setAttribute("data-id", rec.id);
+    box.innerHTML =
+      '<div class="card-head"><h2 class="card-title">退勤が押されていません</h2></div>' +
+      '<p class="forgot-lead">' + dayLabel(rec.date) + (rec.place ? "の「" + esc(rec.place) + "」" : "") +
+      "は、" + clockOf(rec.inAt) + " に出勤したままです。退勤した時刻を入れてください。</p>" +
+      '<div class="forgot-row"><span>退勤</span>' + timeFieldHTML("fg-out", clockOf(s.at)) + "</div>" +
+      '<p class="plan-note" id="fgNote">' + (s.byClock
+        ? (s.same ? "この現場でふだん退勤している時刻" : "ふだん退勤している時刻") + "を入れてあります。"
+        : "出勤から、ふだんの勤務時間ぶんを足した時刻を入れてあります。") + "違う場合は直してください。</p>" +
+      '<div class="prev-actions"><button class="btn btn-primary" id="fgSave">この時刻で退勤にする</button></div>';
+    box.hidden = false;
+    $("fgSave").addEventListener("click", function () {
+      var v = readTimeField(box, "fg-out");
+      if (!v) { $("fgNote").textContent = "時刻を入れてください。"; return; }
+      var hm = v.split(":");
+      var base = new Date(rec.inAt);
+      var at = new Date(base.getFullYear(), base.getMonth(), base.getDate(), +hm[0], +hm[1]).getTime();
+      if (at <= rec.inAt) at += 86400000;   /* 夜勤などで日をまたいだ場合 */
+      if (at > Date.now()) { $("fgNote").textContent = "まだ来ていない時刻です。時刻を確かめてください。"; return; }
+      patchRecord(rec.id, { outAt: at, outFixed: true });
+      $("place").value = "";
+      box.removeAttribute("data-id");
+      render();
+    });
+  }
+
+  /* ================= 締めチェック ================= */
+  function closeEnd(key) {
+    var r = periodRange(key);
+    return new Date(r.y, r.m - 1, CLOSE_DAY, 23, 59, 59).getTime();
+  }
+  /* 締めを過ぎて10日以内で、まだ書き出していなければ締めた月度。それ以外は今の月度。 */
+  function closeTarget() {
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth() + 1;
+    var closedKey = now.getDate() > CLOSE_DAY ? y + "-" + pad(m) : (m === 1 ? (y - 1) + "-12" : y + "-" + pad(m - 1));
+    var end = closeEnd(closedKey);
+    var hasDays = days().some(function (d) { return periodKey(d.date) === closedKey; });
+    if (hasDays && now.getTime() - end <= 10 * 86400000 && lastExportAt < end) {
+      return { key: closedKey, closed: true, left: 0 };
+    }
+    var cur = periodKey(dateKey(now));
+    return { key: cur, closed: false, left: Math.ceil((closeEnd(cur) - now.getTime()) / 86400000) };
+  }
+  function closeIssues(key) {
+    var today = dateKey(new Date());
+    return days().filter(function (d) { return periodKey(d.date) === key; }).map(function (d) {
+      var items = [];
+      d.sessions.forEach(function (r) {
+        if (!r.place) items.push("現場名なし");
+        if (!sessionTask(r)) items.push((r.place ? r.place + "の" : "") + "作業内容なし");
+        if (!r.outAt && d.date !== today) items.push("退勤なし");
+      });
+      if (d.date !== today) {
+        var t = tripOf(d.date);
+        if (!t.vehicle) items.push("車両");
+        if (odoDistance(d.date) == null) items.push("メーター");
+        else if (t.odoEstimated) items.push("距離が推定のまま");
+        if (!alcOf(d.date, "pre")) items.push("乗務前チェック");
+        if (!alcOf(d.date, "post")) items.push("乗務後チェック");
+      }
+      return items.length ? { date: d.date, key: d.key, items: items } : null;
+    }).filter(Boolean);
+  }
+  function closeWhen(tg) {
+    return tg.closed ? "締め日を過ぎました" : tg.left <= 1 ? "今日が締め日です" : "締めまであと" + tg.left + "日";
+  }
+  function openExportFor(key) {
+    openExport();
+    var sel = $("csvMonth");
+    if (Array.prototype.some.call(sel.options, function (o) { return o.value === key; })) {
+      sel.value = key;
+      refreshCsvText();
+    }
+  }
+  function renderCloseQuick() {
+    var box = $("closeQuick");
+    var tg = meName && view === "punch" && days().length ? closeTarget() : null;
+    var near = tg && (tg.closed || tg.left <= 5);
+    var n = near ? closeIssues(tg.key).reduce(function (a, x) { return a + x.items.length; }, 0) : 0;
+    if (!near || (!n && !tg.closed && lastExportAt > closeEnd(tg.key) - 6 * 86400000)) {
+      box.hidden = true; box.innerHTML = ""; return;
+    }
+    box.innerHTML =
+      '<div class="quick-text"><b>' + periodName(tg.key) + "　" + closeWhen(tg) + "</b>" +
+      (n ? "直すところが " + n + " 件あります。" : "記録はそろっています。CSVを書き出して送ってください。") + "</div>" +
+      '<button class="btn btn-primary" id="closeGo">' + (n ? "確認する" : "CSVを書き出す") + "</button>";
+    box.hidden = false;
+    $("closeGo").addEventListener("click", function () {
+      view = "log";
+      render();
+      window.scrollTo(0, 0);
+      if (!n) openExportFor(tg.key);
+    });
+  }
+
+  /* ================= メーターを写真で読む（試作） =================
+     写真は端末の中だけで処理し、どこにも送らない。読み取りの部品だけを初回にダウンロードする。 */
+  var TESS_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  var tessLoading = null;
+  var ocrField = null, ocrImg = null, ocrSel = null, ocrDrag = null, ocrView = null;
+
+  function loadTesseract() {
+    if (!tessLoading) {
+      tessLoading = new Promise(function (resolve, reject) {
+        if (window.Tesseract) return resolve();
+        var s = document.createElement("script");
+        s.src = TESS_URL;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      }).then(function () {
+        return window.Tesseract.createWorker("eng", 1);
+      }).then(function (w) {
+        return w.setParameters({ tessedit_char_whitelist: "0123456789", tessedit_pageseg_mode: "7" }).then(function () { return w; });
+      })["catch"](function (e) { tessLoading = null; throw e; });
+    }
+    return tessLoading;
+  }
+  /* 期待値：出発は前回この車両の帰着、帰着は出発＋ルート推定 */
+  function expectedOdo(field) {
+    var today = dateKey(new Date());
+    var t = tripOf(today);
+    if (field === "odoEnd") {
+      if (t.odoStart == null) return null;
+      var est = estimatedKm(dayOf(today));
+      return { v: t.odoStart + (est || 0), min: t.odoStart, max: t.odoStart + 1500 };
+    }
+    var v = $("vehicle").value.trim();
+    var prev = Object.keys(trips).filter(function (d) {
+      return d < today && (!v || trips[d].vehicle === v) && typeof trips[d].odoEnd === "number";
+    }).sort().pop();
+    if (!prev) return null;
+    return { v: trips[prev].odoEnd, min: trips[prev].odoEnd, max: trips[prev].odoEnd + 1500 };
+  }
+  function openOcr(img) {
+    ocrImg = img;
+    $("ocrModal").hidden = false;
+    $("ocrCands").innerHTML = "";
+    $("ocrTitle").textContent = (ocrField === "odoStart" ? "出発" : "帰着") + "メーターの数字を囲む";
+    $("ocrNote").textContent = "走行距離の数字だけを、指でなぞって四角で囲んでください。";
+    var cv = $("ocrCanvas");
+    var maxW = Math.min(window.innerWidth - 28, 620), maxH = Math.round(window.innerHeight * 0.55);
+    var sc = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
+    cv.width = Math.round(img.naturalWidth * sc);
+    cv.height = Math.round(img.naturalHeight * sc);
+    ocrView = sc;
+    ocrSel = { x: cv.width * 0.2, y: cv.height * 0.4, w: cv.width * 0.6, h: cv.height * 0.2 };
+    drawOcr();
+  }
+  function drawOcr() {
+    var cv = $("ocrCanvas"), g = cv.getContext("2d");
+    g.drawImage(ocrImg, 0, 0, cv.width, cv.height);
+    var s = ocrSel;
+    g.fillStyle = "rgba(0,0,0,.55)";
+    g.fillRect(0, 0, cv.width, s.y);
+    g.fillRect(0, s.y + s.h, cv.width, cv.height - s.y - s.h);
+    g.fillRect(0, s.y, s.x, s.h);
+    g.fillRect(s.x + s.w, s.y, cv.width - s.x - s.w, s.h);
+    g.strokeStyle = "#FFD23F";
+    g.lineWidth = 3;
+    g.strokeRect(s.x, s.y, s.w, s.h);
+  }
+  function ocrPoint(e) {
+    var cv = $("ocrCanvas"), r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height };
+  }
+  /* 囲んだ部分を切り出し、白黒にして読みやすくする */
+  function ocrCrops() {
+    var s = ocrSel, k = 1 / ocrView;
+    var sx = Math.max(0, s.x * k), sy = Math.max(0, s.y * k), sw = Math.max(8, s.w * k), sh = Math.max(8, s.h * k);
+    var scale = Math.max(1, Math.min(4, 90 / sh));
+    var w = Math.round(sw * scale), h = Math.round(sh * scale), padPx = 24;
+    var gray = document.createElement("canvas");
+    gray.width = w; gray.height = h;
+    var g = gray.getContext("2d");
+    g.drawImage(ocrImg, sx, sy, sw, sh, 0, 0, w, h);
+    var data = g.getImageData(0, 0, w, h), px = data.data, hist = new Array(256).fill(0), i;
+    for (i = 0; i < px.length; i += 4) {
+      var v = Math.round(px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114);
+      px[i] = px[i + 1] = px[i + 2] = v;
+      hist[v]++;
+    }
+    /* 大津の方法でしきい値を決める */
+    var total = w * h, sum = 0, sumB = 0, wB = 0, best = 0, th = 128;
+    for (i = 0; i < 256; i++) sum += i * hist[i];
+    for (i = 0; i < 256; i++) {
+      wB += hist[i]; if (!wB) continue;
+      var wF = total - wB; if (!wF) break;
+      sumB += i * hist[i];
+      var mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
+      if (between > best) { best = between; th = i; }
+    }
+    var dark = 0;
+    for (i = 0; i < px.length; i += 4) if (px[i] < th) dark++;
+    var invert = dark > total / 2;   /* 黒地に明るい数字（液晶など）は反転する */
+    var make = function (binary) {
+      var c = document.createElement("canvas");
+      c.width = w + padPx * 2; c.height = h + padPx * 2;
+      var cg = c.getContext("2d");
+      cg.fillStyle = "#fff";
+      cg.fillRect(0, 0, c.width, c.height);
+      var out = cg.createImageData(w, h), o = out.data;
+      for (var j = 0; j < px.length; j += 4) {
+        var val = binary ? (px[j] < th ? 0 : 255) : px[j];
+        if (invert) val = 255 - val;
+        o[j] = o[j + 1] = o[j + 2] = val; o[j + 3] = 255;
+      }
+      cg.putImageData(out, padPx, padPx);
+      return c;
+    };
+    return [make(true), make(false)];
+  }
+  function readOcr() {
+    $("ocrRead").disabled = true;
+    $("ocrCands").innerHTML = "";
+    $("ocrNote").textContent = "読み取りの準備をしています…（初めてのときは数MBのダウンロードがあります）";
+    loadTesseract().then(function (w) {
+      $("ocrNote").textContent = "読み取り中…";
+      var crops = ocrCrops();
+      return crops.reduce(function (p, c) {
+        return p.then(function (acc) {
+          return w.recognize(c).then(function (r) { return acc.concat([r.data.text || ""]); });
+        });
+      }, Promise.resolve([]));
+    }).then(function (texts) {
+      var seen = {}, cands = [];
+      texts.forEach(function (t) {
+        var joined = t.replace(/[^0-9]/g, "");
+        (t.match(/\d{3,7}/g) || []).concat(joined.length >= 3 && joined.length <= 7 ? [joined] : []).forEach(function (s) {
+          var n = parseInt(s, 10);
+          if (!seen[n]) { seen[n] = 1; cands.push(n); }
+        });
+      });
+      var exp = expectedOdo(ocrField);
+      if (exp) {
+        cands.sort(function (a, b) {
+          var ia = a >= exp.min && a <= exp.max ? 0 : 1, ib = b >= exp.min && b <= exp.max ? 0 : 1;
+          return ia - ib || Math.abs(a - exp.v) - Math.abs(b - exp.v);
+        });
+      } else {
+        cands.sort(function (a, b) { return String(b).length - String(a).length; });
+      }
+      cands = cands.slice(0, 4);
+      $("ocrRead").disabled = false;
+      if (!cands.length) {
+        $("ocrNote").textContent = "数字を読み取れませんでした。数字の部分だけをもう少し小さく囲んで、もう一度押してください。";
+        return;
+      }
+      $("ocrNote").textContent = "読み取った数字です。正しいものを押してください。" +
+        (exp ? "前回の記録に近い順に並べています。" : "") + "違う場合は、囲み直すか手で入れてください。";
+      $("ocrCands").innerHTML = cands.map(function (n, i) {
+        return '<button class="btn' + (i === 0 ? " best" : "") + '" data-odo="' + n + '">' + n + "</button>";
+      }).join("");
+      Array.prototype.forEach.call($("ocrCands").querySelectorAll("[data-odo]"), function (b) {
+        b.addEventListener("click", function () {
+          $(ocrField).value = b.getAttribute("data-odo");
+          $("ocrModal").hidden = true;
+          commitTrip();
+          renderSummaries();
+        });
+      });
+    })["catch"](function () {
+      $("ocrRead").disabled = false;
+      $("ocrNote").textContent = "読み取りの部品を読み込めませんでした。電波のある場所でもう一度試してください。";
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-cam]"), function (b) {
+    b.addEventListener("click", function () {
+      ocrField = b.getAttribute("data-cam");
+      $("camFile").click();
+    });
+  });
+  $("camFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    var url = URL.createObjectURL(f);
+    var img = new Image();
+    img.onload = function () { openOcr(img); setTimeout(function () { URL.revokeObjectURL(url); }, 1000); };
+    img.onerror = function () { URL.revokeObjectURL(url); };
+    img.src = url;
+    loadTesseract()["catch"](function () {});   /* 囲んでいる間に準備しておく */
+  });
+  $("ocrCancel").addEventListener("click", function () { $("ocrModal").hidden = true; });
+  $("ocrRead").addEventListener("click", readOcr);
+  $("ocrCanvas").addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    try { this.setPointerCapture(e.pointerId); } catch (err) {}
+    ocrDrag = ocrPoint(e);
+  });
+  $("ocrCanvas").addEventListener("pointermove", function (e) {
+    if (!ocrDrag) return;
+    var p = ocrPoint(e);
+    ocrSel = { x: Math.min(p.x, ocrDrag.x), y: Math.min(p.y, ocrDrag.y), w: Math.abs(p.x - ocrDrag.x), h: Math.abs(p.y - ocrDrag.y) };
+    drawOcr();
+  });
+  ["pointerup", "pointercancel"].forEach(function (ev) {
+    $("ocrCanvas").addEventListener(ev, function () {
+      if (ocrDrag && (ocrSel.w < 12 || ocrSel.h < 8)) {
+        var cv = $("ocrCanvas");
+        ocrSel = { x: Math.max(0, ocrDrag.x - cv.width * 0.25), y: Math.max(0, ocrDrag.y - cv.height * 0.08), w: cv.width * 0.5, h: cv.height * 0.16 };
+        drawOcr();
+      }
+      ocrDrag = null;
+    });
+  });
+
+  $("planCard").addEventListener("toggle", function () {
+    if ($("planCard").open && !$("planBody").innerHTML) buildPlanBody();
+  });
+  window.addEventListener("hashchange", function () {
+    var p = planFromText(location.hash);
+    if (p) { planInbox = p; renderPlanInbox(); window.scrollTo(0, 0); }
+  });
+
   /* ---------- boot ---------- */
   records = readLS(LS_REC, []);
+  plans = readLS(LS_PLAN, {}) || {};
+  (function () {
+    /* 1週間より前の段取りは消す */
+    var limit = new Date(); limit.setDate(limit.getDate() - 7);
+    var lk = dateKey(limit), changed = false;
+    Object.keys(plans).forEach(function (d) { if (d < lk) { delete plans[d]; changed = true; } });
+    if (changed) savePlans();
+  })();
+  planInbox = planFromText(location.hash);
+  if (!planInbox && location.hash.indexOf("#plan=") === 0) clearPlanHash();
   trips = readLS(LS_TRIP, {}) || {};
   manager = readLS(LS_MGR, "") || "";
   bases = readLS(LS_BASE, {}) || {};
