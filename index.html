@@ -699,6 +699,37 @@
   .plan-paste textarea { height: 70px; resize: vertical; font-size: 16px; }
   .plan-note { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.55; }
 
+  /* ---------- 休み・有給のカレンダー ---------- */
+  .off-head { margin-bottom: 10px; }
+  .off-head select {
+    width: 100%; padding: 9px 10px; border-radius: 9px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .cal-wd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+  .cal-wd span { text-align: center; font-size: 11px; color: var(--ink-3); }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-pad { display: block; }
+  .cal-cell {
+    display: grid; gap: 1px; justify-items: center; align-content: center;
+    min-height: 46px; padding: 4px 2px; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); color: var(--ink);
+  }
+  .cal-cell .cal-d { font-size: 13px; font-weight: 700; line-height: 1.1; }
+  .cal-cell .cal-t { font-size: 9.5px; line-height: 1.1; color: var(--ink-2); }
+  .cal-cell .cal-auto { font-size: 8.5px; color: var(--ink-3); }
+  .cal-cell.work { background: var(--accent-soft); border-color: transparent; }
+  .cal-cell.work .cal-t { color: var(--accent-ink); }
+  .cal-cell.off-holiday, .cal-cell.off-rain { background: var(--surface-2); color: var(--ink-2); }
+  .cal-cell.off-paid, .cal-cell.off-half { background: var(--amber-soft); }
+  .cal-cell.off-paid .cal-t, .cal-cell.off-half .cal-t { color: var(--amber); }
+  .cal-cell.future { opacity: .45; }
+  .cal-cell.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .off-pick { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .off-pick b { display: block; font-size: 14px; margin-bottom: 6px; }
+  .off-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .off-kinds .rc.on { background: var(--accent); color: var(--on-accent); }
+
   /* ---------- 締めチェック ---------- */
   .close { border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
   .close.has { background: var(--amber-soft); }
@@ -729,6 +760,11 @@
   .ocr-cands:empty { display: none; }
   .ocr-cands .btn { font-size: 18px; font-weight: 700; padding: 10px 16px; font-family: "IBM Plex Mono", monospace; }
   .ocr-cands .btn.best { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  .ocr-prev { display: block; max-width: 100%; margin-top: 8px; border-radius: 6px; border: 1px solid var(--line); background: #fff; }
+  .ocr-manual { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; width: 100%; margin-top: 4px; }
+  .ocr-manual label { flex: 1 1 150px; }
+  .ocr-manual .btn { flex: none; }
+  .ocr-foot { max-height: 42vh; overflow-y: auto; }
 
   /* ---------- 同じ現場の前回の内容 ---------- */
   .prev {
@@ -943,6 +979,7 @@
     <div class="col-left">
       <section class="card inbox" id="planInbox" hidden></section>
       <section class="card forgot" id="forgotCard" hidden></section>
+      <section class="card inbox" id="nearCard" hidden></section>
       <div class="quick" id="closeQuick" hidden></div>
       <section class="card" id="gate" hidden>
         <div class="card-head"><h2 class="card-title">はじめに</h2></div>
@@ -1129,6 +1166,14 @@
           <a href="./shukei.html">届いたCSVをまとめて集計する（担当者向け）</a>
         </p>
       </section>
+
+      <details class="card" id="offCard" hidden>
+        <summary class="card-head">
+          <h2 class="card-title">休み・有給</h2>
+          <span class="sum-val" id="offSum"></span>
+        </summary>
+        <div id="offBody"></div>
+      </details>
 
       <section class="card" id="moveCard">
         <div class="card-head">
@@ -1675,9 +1720,11 @@
     if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); renderPlanSum(); }
     renderPlanInbox();
     renderForgot();
+    renderNear();
     renderCloseQuick();
     renderTripQuick();
     renderHistory();
+    renderOff();
     renderExport();
     renderManual();
     tick();
@@ -3486,7 +3533,7 @@
   }
   function buildCsv(month) {
     var list = days().filter(function (d) { return !month || periodKey(d.date) === month; });
-    var head = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
+    var head = ["社員名", "日付", "曜日", "区分", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間", "実働(時間換算)",
       "現場数", "現場名", "現場名(日勤)", "現場名(夜勤)", "現場ごとの内訳",
       "作業内容", "作業員(自社)", "作業員(応援)", "作業員(外注)",
       "車両", "出発地", "帰着地", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
@@ -3508,7 +3555,7 @@
       var rpts = routePoints(d);
       if (od != null) totalKm += od;
       lines.push([
-        meName, d.date, WD[dt.getDay()],
+        meName, d.date, WD[dt.getDay()], offLabel(d.date) || "出勤",
         clockOf(first.inAt),
         last.outAt ? clockOf(last.outAt) : "",
         fmtHM(d.holdMs), d.breakMin, fmtHM(d.workMs), decHours(d.workMs),
@@ -3550,11 +3597,32 @@
         sessionDetailJson(d)
       ]).map(csvCell).join(","));
     });
+    /* 出勤していない日（休日・有給など）も1行ずつ残す */
+    var offList = Object.keys(offDays).filter(function (date) {
+      return (!month || periodKey(date) === month) && !dayOf(date);
+    }).sort();
+    offList.forEach(function (date) {
+      var row = head.map(function () { return ""; });
+      var set = function (col, v) { var i = head.indexOf(col); if (i >= 0) row[i] = v; };
+      var dt = parseKey(date);
+      set("社員名", meName);
+      set("日付", date);
+      set("曜日", WD[dt.getDay()]);
+      set("区分", offLabel(date));
+      set("実働時間", "0:00");
+      set("実働(時間換算)", "0.00");
+      set("備考", offDays[date].auto ? "締め日に自動で休日にしたもの" : "");
+      lines.push(row.map(csvCell).join(","));
+    });
+
     /* 合計行は列名で位置を決める（列を足しても崩れないように） */
     var foot = head.map(function () { return ""; });
     var put = function (col, v) { var i = head.indexOf(col); if (i >= 0) foot[i] = v; };
+    var counts = offCounts(month);
     put("日付", "合計");
     put("曜日", list.length + "日");
+    put("区分", Object.keys(OFF_KINDS).filter(function (k) { return counts[k]; })
+      .map(function (k) { return OFF_KINDS[k] + " " + counts[k] + "日"; }).join("・"));
     put("実働時間", fmtHM(total));
     put("実働(時間換算)", decHours(total));
     if (totalKm) put("走行距離(km)", totalKm);
@@ -3615,6 +3683,138 @@
     refreshCsvText();
     renderExport();
     $("exportPanel").scrollIntoView({ block: "nearest" });
+  }
+
+  /* ================= 休み・有給 =================
+     出勤していない日の区分を残す。締め日を過ぎた月度は、記録も区分もない日を自動で休日にする。 */
+  var LS_OFF = "genba-timecard-offdays-v1";
+  var LS_OFFAUTO = "genba-timecard-offauto-v1";
+  var OFF_KINDS = { holiday: "休日", paid: "有給", half: "半休", rain: "雨天中止", other: "その他" };
+  var offDays = {};
+  var offAuto = {};
+  var offMonth = "";
+  var offPick = "";
+
+  function offLabel(date) {
+    var o = offDays[date];
+    return o ? (OFF_KINDS[o.kind] || "") : "";
+  }
+  function saveOff() { writeLS(LS_OFF, offDays); }
+  function setOff(date, kind) {
+    if (kind) offDays[date] = { kind: kind };
+    else delete offDays[date];
+    saveOff();
+  }
+  function periodDates(key) {
+    var r = periodRange(key);
+    var d = new Date(r.sy, r.sm - 1, CLOSE_DAY + 1);
+    var end = new Date(r.y, r.m - 1, CLOSE_DAY);
+    var out = [];
+    while (d <= end) { out.push(dateKey(d)); d.setDate(d.getDate() + 1); }
+    return out;
+  }
+  function offCounts(month) {
+    var counts = {};
+    Object.keys(offDays).forEach(function (d) {
+      if (month && periodKey(d) !== month) return;
+      counts[offDays[d].kind] = (counts[offDays[d].kind] || 0) + 1;
+    });
+    return counts;
+  }
+  /* 締め日を過ぎた月度の、記録も区分もない日を休日にする */
+  function autoFillOff() {
+    var now = Date.now(), today = dateKey(new Date()), changed = false;
+    var keys = monthKeys();
+    keys.forEach(function (key) {
+      if (offAuto[key] || now <= closeEnd(key)) return;
+      periodDates(key).forEach(function (d) {
+        if (d > today || dayOf(d) || offDays[d]) return;
+        offDays[d] = { kind: "holiday", auto: true };
+        changed = true;
+      });
+      offAuto[key] = true;
+      changed = true;
+    });
+    if (changed) { saveOff(); writeLS(LS_OFFAUTO, offAuto); }
+  }
+
+  function offMonthKeys() {
+    var seen = {}, out = [];
+    monthKeys().concat(Object.keys(offDays).map(periodKey))
+      .concat([periodKey(dateKey(new Date()))]).forEach(function (m) {
+        if (!seen[m]) { seen[m] = 1; out.push(m); }
+      });
+    return out.sort().reverse();
+  }
+  function renderOff() {
+    var card = $("offCard");
+    if (!meName) { card.hidden = true; return; }
+    card.hidden = false;
+    var months = offMonthKeys();
+    if (months.indexOf(offMonth) < 0) offMonth = months[0];
+    var dates = periodDates(offMonth);
+    var today = dateKey(new Date());
+    var worked = 0, counts = {};
+    dates.forEach(function (d) {
+      if (dayOf(d)) worked++;
+      var o = offDays[d];
+      if (o) counts[o.kind] = (counts[o.kind] || 0) + 1;
+    });
+    $("offSum").textContent = "出勤 " + worked + "日" +
+      Object.keys(OFF_KINDS).filter(function (k) { return counts[k]; })
+        .map(function (k) { return " ・ " + OFF_KINDS[k] + " " + counts[k] + "日"; }).join("");
+
+    var first = parseKey(dates[0]).getDay();
+    var cells = [];
+    for (var i = 0; i < first; i++) cells.push('<span class="cal-pad"></span>');
+    dates.forEach(function (d) {
+      var dt = parseKey(d);
+      var day = dayOf(d);
+      var o = offDays[d];
+      var cls = day ? "work" : o ? "off-" + o.kind : d > today ? "future" : "none";
+      cells.push('<button class="cal-cell ' + cls + (d === offPick ? " on" : "") + '" data-date="' + d + '">' +
+        '<span class="cal-d">' + dt.getDate() + "</span>" +
+        '<span class="cal-t">' + (day ? fmtHM(day.workMs) : o ? OFF_KINDS[o.kind] : "") + "</span>" +
+        (o && o.auto ? '<span class="cal-auto">自動</span>' : "") + "</button>");
+    });
+    $("offBody").innerHTML =
+      '<div class="off-head"><select id="offMonthSel">' + months.map(function (m) {
+        return '<option value="' + m + '"' + (m === offMonth ? " selected" : "") + ">" + periodName(m) + "（" + periodSpan(m) + "）</option>";
+      }).join("") + "</select></div>" +
+      '<div class="cal-wd">' + WD.map(function (w) { return "<span>" + w + "</span>"; }).join("") + "</div>" +
+      '<div class="cal">' + cells.join("") + "</div>" +
+      (offPick ? offPickHTML() : '<p class="plan-note">日付を押すと、休日・有給などを記録できます。' +
+        "締め日を過ぎると、記録のない日は自動で休日になります（「自動」と出ます）。あとから直せます。</p>");
+
+    $("offMonthSel").addEventListener("change", function () {
+      offMonth = $("offMonthSel").value;
+      offPick = "";
+      renderOff();
+    });
+    Array.prototype.forEach.call($("offBody").querySelectorAll(".cal-cell"), function (b) {
+      b.addEventListener("click", function () {
+        var d = b.getAttribute("data-date");
+        offPick = offPick === d ? "" : d;
+        renderOff();
+      });
+    });
+    Array.prototype.forEach.call($("offBody").querySelectorAll("[data-kind]"), function (b) {
+      b.addEventListener("click", function () {
+        setOff(offPick, b.getAttribute("data-kind"));
+        renderOff();
+        renderHistory();
+      });
+    });
+  }
+  function offPickHTML() {
+    var dt = parseKey(offPick);
+    var day = dayOf(offPick);
+    var cur = offDays[offPick] ? offDays[offPick].kind : "";
+    return '<div class="off-pick"><b>' + (dt.getMonth() + 1) + "/" + dt.getDate() + "（" + WD[dt.getDay()] + "）</b>" +
+      (day ? '<span class="plan-note">この日は打刻があります。休日出勤や半休のときに区分を付けられます。</span>' : "") +
+      '<div class="off-kinds">' + Object.keys(OFF_KINDS).map(function (k) {
+        return '<button class="rc' + (k === cur ? " on" : "") + '" data-kind="' + k + '">' + OFF_KINDS[k] + "</button>";
+      }).join("") + '<button class="rc" data-kind="">取り消す</button></div></div>';
   }
 
   /* ================= 段取りリンク =================
@@ -3870,6 +4070,82 @@
     });
   }
 
+  /* ================= 開いたときに位置から打刻をすすめる =================
+     位置情報がすでに許可されている端末でだけ、そっと現在地を見て知らせる。 */
+  var nearSuggest = null, nearCheckedAt = 0, nearDismissed = {};
+  var NEAR_AWAY_KM = 0.6;
+
+  function geoGranted() {
+    if (!navigator.permissions || !navigator.permissions.query) return Promise.resolve(false);
+    return navigator.permissions.query({ name: "geolocation" })
+      .then(function (s) { return s.state === "granted"; })["catch"](function () { return false; });
+  }
+  function nearKey(s) {
+    return s.kind + "|" + (s.place || "") + "|" + Math.floor(Date.now() / 3600000);
+  }
+  function checkNear() {
+    if (!meName || busy || document.hidden) return;
+    if (Date.now() - nearCheckedAt < 5 * 60000) return;
+    nearCheckedAt = Date.now();
+    geoGranted().then(function (ok) {
+      if (!ok) return null;
+      return getLocation();
+    }).then(function (loc) {
+      if (!loc) return;
+      var act = activeRecord();
+      if (act) {
+        var base = act.inLoc || act.outLoc;
+        var km = base ? haversineKm(loc, base) : 0;
+        nearSuggest = (base && km > NEAR_AWAY_KM && Date.now() - act.inAt > 30 * 60000)
+          ? { kind: "out", place: act.place || "", km: km } : null;
+      } else {
+        var near = nearestPlace(loc, null);
+        var today = dayOf(dateKey(new Date()));
+        /* さっき退勤したばかりの現場では出さない */
+        var justLeft = near && today && today.sessions.some(function (r) {
+          return r.place === near.place && r.outAt && Date.now() - r.outAt < 30 * 60000;
+        });
+        nearSuggest = near && !justLeft ? { kind: "in", place: near.place, km: near.km } : null;
+      }
+      renderNear();
+    })["catch"](function () {});
+  }
+  function renderNear() {
+    var box = $("nearCard");
+    var s = nearSuggest;
+    if (!s || !meName || view !== "punch" || forgottenRecord() || nearDismissed[nearKey(s)]) {
+      box.hidden = true; box.innerHTML = ""; return;
+    }
+    var dist = s.km < 1 ? Math.max(10, Math.round(s.km * 100) * 10) + "m" : s.km.toFixed(1) + "km";
+    box.innerHTML = s.kind === "in"
+      ? '<div class="card-head"><h2 class="card-title">' + esc(s.place) + "にいます</h2>" +
+        '<span class="card-note">約' + dist + "</span></div>" +
+        '<p class="plan-note" style="margin:0 0 10px">前にこの現場で打刻した場所の近くです。ここで出勤しますか。</p>' +
+        '<div class="prev-actions"><button class="btn btn-primary" id="nearGo">ここで出勤</button>' +
+        '<button class="btn" id="nearNo">閉じる</button></div>'
+      : '<div class="card-head"><h2 class="card-title">現場から離れています</h2>' +
+        '<span class="card-note">約' + dist + "</span></div>" +
+        '<p class="plan-note" style="margin:0 0 10px">' + (s.place ? "「" + esc(s.place) + "」" : "打刻した場所") +
+        "から離れました。退勤を押し忘れていませんか。</p>" +
+        '<div class="prev-actions"><button class="btn btn-primary" id="nearGo">退勤する</button>' +
+        '<button class="btn" id="nearNo">まだ勤務中</button></div>';
+    box.hidden = false;
+    $("nearGo").addEventListener("click", function () {
+      if (s.kind === "in" && !$("place").value.trim()) {
+        $("place").value = s.place;
+        planFilledFor = dateKey(new Date());
+      }
+      nearSuggest = null;
+      renderNear();
+      punch();
+    });
+    $("nearNo").addEventListener("click", function () {
+      nearDismissed[nearKey(s)] = true;
+      nearSuggest = null;
+      renderNear();
+    });
+  }
+
   /* ================= 退勤の押し忘れ ================= */
   var FORGOT_HOURS = 14;
   function forgottenRecord() {
@@ -4039,6 +4315,8 @@
     $("ocrModal").hidden = false;
     $("ocrCands").innerHTML = "";
     $("ocrTitle").textContent = (ocrField === "odoStart" ? "出発" : "帰着") + "メーターの数字を囲む";
+    $("ocrRead").textContent = "囲んだ所を読む";
+    $("ocrRead").disabled = false;
     $("ocrNote").textContent = "走行距離の数字だけを、指でなぞって四角で囲んでください。";
     var cv = $("ocrCanvas");
     var maxW = Math.min(window.innerWidth - 28, 620), maxH = Math.round(window.innerHeight * 0.55);
@@ -4066,104 +4344,334 @@
     var cv = $("ocrCanvas"), r = cv.getBoundingClientRect();
     return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height };
   }
-  /* 囲んだ部分を切り出し、白黒にして読みやすくする */
-  function ocrCrops() {
+  /* 囲んだ部分を切り出し、いくつかの見え方に作り分ける。
+     メーターは照り返しや液晶で読みにくいので、全体のしきい値・まわりだけを見たしきい値・
+     白黒を反転したものをそれぞれ試す。 */
+  function ocrVariants() {
     var s = ocrSel, k = 1 / ocrView;
-    var sx = Math.max(0, s.x * k), sy = Math.max(0, s.y * k), sw = Math.max(8, s.w * k), sh = Math.max(8, s.h * k);
-    var scale = Math.max(1, Math.min(4, 90 / sh));
-    var w = Math.round(sw * scale), h = Math.round(sh * scale), padPx = 24;
-    var gray = document.createElement("canvas");
-    gray.width = w; gray.height = h;
-    var g = gray.getContext("2d");
+    var sx = Math.max(0, s.x * k), sy = Math.max(0, s.y * k);
+    var sw = Math.max(8, s.w * k), sh = Math.max(8, s.h * k);
+    var scale = Math.max(1, Math.min(6, 110 / sh));
+    var w = Math.round(sw * scale), h = Math.round(sh * scale), pad = 26;
+    var src = document.createElement("canvas");
+    src.width = w; src.height = h;
+    var g = src.getContext("2d");
     g.drawImage(ocrImg, sx, sy, sw, sh, 0, 0, w, h);
-    var data = g.getImageData(0, 0, w, h), px = data.data, hist = new Array(256).fill(0), i;
-    for (i = 0; i < px.length; i += 4) {
+    var img = g.getImageData(0, 0, w, h), px = img.data;
+    var gray = new Uint8ClampedArray(w * h), hist = new Array(256).fill(0), i, j;
+    for (i = 0, j = 0; i < px.length; i += 4, j++) {
       var v = Math.round(px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114);
-      px[i] = px[i + 1] = px[i + 2] = v;
-      hist[v]++;
+      gray[j] = v; hist[v]++;
     }
-    /* 大津の方法でしきい値を決める */
-    var total = w * h, sum = 0, sumB = 0, wB = 0, best = 0, th = 128;
-    for (i = 0; i < 256; i++) sum += i * hist[i];
+    /* コントラストを伸ばす（上下2%を切る） */
+    var total = w * h, lo = 0, hi = 255, acc = 0;
+    for (i = 0; i < 256; i++) { acc += hist[i]; if (acc > total * 0.02) { lo = i; break; } }
+    acc = 0;
+    for (i = 255; i >= 0; i--) { acc += hist[i]; if (acc > total * 0.02) { hi = i; break; } }
+    var span = Math.max(1, hi - lo);
+    var stretched = new Uint8ClampedArray(w * h);
+    for (j = 0; j < gray.length; j++) stretched[j] = Math.max(0, Math.min(255, Math.round((gray[j] - lo) * 255 / span)));
+
+    /* 大津のしきい値 */
+    var sum = 0, sumB = 0, wB = 0, best = 0, th = 128;
+    var hist2 = new Array(256).fill(0);
+    for (j = 0; j < stretched.length; j++) hist2[stretched[j]]++;
+    for (i = 0; i < 256; i++) sum += i * hist2[i];
     for (i = 0; i < 256; i++) {
-      wB += hist[i]; if (!wB) continue;
+      wB += hist2[i]; if (!wB) continue;
       var wF = total - wB; if (!wF) break;
-      sumB += i * hist[i];
+      sumB += i * hist2[i];
       var mB = sumB / wB, mF = (sum - sumB) / wF, between = wB * wF * (mB - mF) * (mB - mF);
       if (between > best) { best = between; th = i; }
     }
+    /* まわりの明るさを見たしきい値（照り返しやムラに強い） */
+    var win = Math.max(9, Math.round(h / 3)) | 1;
+    var integral = new Float64Array((w + 1) * (h + 1));
+    for (var y = 0; y < h; y++) {
+      var rowSum = 0;
+      for (var x = 0; x < w; x++) {
+        rowSum += stretched[y * w + x];
+        integral[(y + 1) * (w + 1) + x + 1] = integral[y * (w + 1) + x + 1] + rowSum;
+      }
+    }
+    var local = new Uint8ClampedArray(w * h);
+    for (var y2 = 0; y2 < h; y2++) {
+      for (var x2 = 0; x2 < w; x2++) {
+        var x0 = Math.max(0, x2 - win), y0 = Math.max(0, y2 - win);
+        var x1 = Math.min(w - 1, x2 + win), y1 = Math.min(h - 1, y2 + win);
+        var area = (x1 - x0 + 1) * (y1 - y0 + 1);
+        var s2 = integral[(y1 + 1) * (w + 1) + x1 + 1] - integral[y0 * (w + 1) + x1 + 1] -
+          integral[(y1 + 1) * (w + 1) + x0] + integral[y0 * (w + 1) + x0];
+        local[y2 * w + x2] = stretched[y2 * w + x2] * area < s2 * 0.92 ? 0 : 255;
+      }
+    }
     var dark = 0;
-    for (i = 0; i < px.length; i += 4) if (px[i] < th) dark++;
-    var invert = dark > total / 2;   /* 黒地に明るい数字（液晶など）は反転する */
-    var make = function (binary) {
+    for (j = 0; j < stretched.length; j++) if (stretched[j] < th) dark++;
+    var darkBg = dark > total / 2;   /* 黒地に明るい数字（液晶など） */
+
+    var make = function (buf, invert) {
       var c = document.createElement("canvas");
-      c.width = w + padPx * 2; c.height = h + padPx * 2;
+      c.width = w + pad * 2; c.height = h + pad * 2;
       var cg = c.getContext("2d");
       cg.fillStyle = "#fff";
       cg.fillRect(0, 0, c.width, c.height);
       var out = cg.createImageData(w, h), o = out.data;
-      for (var j = 0; j < px.length; j += 4) {
-        var val = binary ? (px[j] < th ? 0 : 255) : px[j];
-        if (invert) val = 255 - val;
-        o[j] = o[j + 1] = o[j + 2] = val; o[j + 3] = 255;
+      for (var n = 0, m = 0; n < buf.length; n++, m += 4) {
+        var val = invert ? 255 - buf[n] : buf[n];
+        o[m] = o[m + 1] = o[m + 2] = val; o[m + 3] = 255;
       }
-      cg.putImageData(out, padPx, padPx);
+      cg.putImageData(out, pad, pad);
       return c;
     };
-    return [make(true), make(false)];
+    var otsu = new Uint8ClampedArray(w * h);
+    for (j = 0; j < stretched.length; j++) otsu[j] = stretched[j] < th ? 0 : 255;
+    return [
+      make(local, darkBg), make(otsu, darkBg), make(stretched, darkBg),
+      make(local, !darkBg), make(otsu, !darkBg)
+    ];
+  }
+  /* ---------- 7セグメント表示（デジタルのメーター）を直接読む ----------
+     数字の形は7本の棒の組み合わせなので、傾きを直してから桁に切り、
+     棒が光っているかどうかで数字を決める。文字認識より確実。 */
+  var SEG_MAP = {
+    "1110111": "0", "0010010": "1", "1011101": "2", "1011011": "3", "0111010": "4",
+    "1101011": "5", "1101111": "6", "1010010": "7", "1111111": "8", "1111011": "9"
+  };
+  /* 棒の位置（桁の枠に対する割合）: 上・左上・右上・中・左下・右下・下 */
+  var SEG_BOXES = [
+    [0.22, 0.78, 0.00, 0.20], [0.00, 0.28, 0.08, 0.45], [0.72, 1.00, 0.08, 0.45],
+    [0.22, 0.78, 0.40, 0.60], [0.00, 0.28, 0.55, 0.92], [0.72, 1.00, 0.55, 0.92],
+    [0.22, 0.78, 0.80, 1.00]
+  ];
+  function sevenSeg(sx, sy, sw, sh) {
+    var scale = Math.max(1, Math.min(6, 150 / sh));
+    var w = Math.round(sw * scale), h = Math.round(sh * scale), n = w * h, i, j, x, y, cnt;
+    if (!(w > 20 && h > 12)) return null;
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    var g = c.getContext("2d");
+    g.drawImage(ocrImg, sx, sy, sw, sh, 0, 0, w, h);
+    var px = g.getImageData(0, 0, w, h).data;
+    var gray = new Float32Array(n), hist = new Array(256).fill(0);
+    for (i = 0, j = 0; i < px.length; i += 4, j++) {
+      var v = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+      gray[j] = v; hist[Math.round(v)]++;
+    }
+    var sum = 0, sumB = 0, wB = 0, best = 0, th = 128;
+    for (i = 0; i < 256; i++) sum += i * hist[i];
+    for (i = 0; i < 256; i++) {
+      wB += hist[i]; if (!wB) continue;
+      var wF = n - wB; if (!wF) break;
+      sumB += i * hist[i];
+      var mB = sumB / wB, mF = (sum - sumB) / wF, bt = wB * wF * (mB - mF) * (mB - mF);
+      if (bt > best) { best = bt; th = i; }
+    }
+    var above = 0;
+    for (j = 0; j < n; j++) if (gray[j] > th) above++;
+    var bright = above < n / 2;   /* 数字が明るいか暗いか、少ない方を数字とみなす */
+    var fg0 = new Uint8Array(n);
+    for (j = 0; j < n; j++) fg0[j] = ((gray[j] > th) === bright) ? 1 : 0;
+
+    /* 傾きを総当たりで直す（縦に揃うほど列の濃淡がはっきりする） */
+    var mid = h / 2, shear = 0, bestSq = -1, fg = fg0;
+    for (var s = -0.5; s <= 0.5001; s += 0.025) {
+      var t2 = new Uint8Array(n);
+      for (y = 0; y < h; y++) {
+        var off = Math.round(s * (mid - y));
+        for (x = 0; x < w; x++) if (fg0[y * w + x]) { var tx = x + off; if (tx >= 0 && tx < w) t2[y * w + tx] = 1; }
+      }
+      var sq = 0;
+      for (x = 0; x < w; x++) { cnt = 0; for (y = 0; y < h; y++) cnt += t2[y * w + x]; sq += cnt * cnt; }
+      if (sq > bestSq) { bestSq = sq; shear = s; fg = t2; }
+    }
+    /* 数字が並んでいる行（いちばん中身の多いひとまとまり）を選ぶ */
+    var rows = new Int32Array(h), maxRow = 0;
+    for (y = 0; y < h; y++) { cnt = 0; for (x = 0; x < w; x++) cnt += fg[y * w + x]; rows[y] = cnt; if (cnt > maxRow) maxRow = cnt; }
+    var runs = [], run = null;
+    for (y = 0; y < h; y++) {
+      if (rows[y] > maxRow * 0.15) { if (!run) run = { a: y, b: y, ink: 0 }; run.b = y; run.ink += rows[y]; }
+      else if (run) { runs.push(run); run = null; }
+    }
+    if (run) runs.push(run);
+    if (!runs.length) return null;
+    runs.sort(function (p, q) { return q.ink - p.ink; });
+    var y0 = runs[0].a, y1 = runs[0].b, bandH = y1 - y0 + 1;
+    if (bandH < 10) return null;
+
+    var cols = new Int32Array(w);
+    for (x = 0; x < w; x++) { cnt = 0; for (y = y0; y <= y1; y++) cnt += fg[y * w + x]; cols[x] = cnt; }
+    var raw = [], cur = null;
+    for (x = 0; x < w; x++) {
+      if (cols[x] > bandH * 0.05) { if (!cur) cur = { x0: x, x1: x }; else cur.x1 = x; }
+      else if (cur) { if (cur.x1 - cur.x0 >= 2) raw.push(cur); cur = null; }
+    }
+    if (cur && cur.x1 - cur.x0 >= 2) raw.push(cur);
+    if (!raw.length || raw.length > 12) return null;
+
+    /* 1桁の幅を見当づけて、くっついた桁を等分する */
+    var ws = raw.map(function (gp) { return gp.x1 - gp.x0 + 1; }).sort(function (a, b) { return a - b; });
+    var unit = ws[Math.floor(ws.length / 2)];
+    raw.forEach(function (gp) {
+      var gw = gp.x1 - gp.x0 + 1;
+      if (gw > bandH * 0.3 && gw < unit * 1.45) unit = Math.min(unit, gw);
+    });
+    if (!(unit > 4)) return null;
+    var groups = [];
+    raw.forEach(function (gp) {
+      var gw = gp.x1 - gp.x0 + 1;
+      var k = gw < bandH * 0.32 ? 1 : Math.max(1, Math.round(gw / unit));
+      for (var m = 0; m < k; m++) {
+        groups.push({
+          x0: Math.round(gp.x0 + gw * m / k),
+          x1: Math.round(gp.x0 + gw * (m + 1) / k) - 1,
+          narrow: gw / k < bandH * 0.3
+        });
+      }
+    });
+    if (groups.length < 3 || groups.length > 9) return null;
+
+    var digits = groups.map(function (gp) {
+      var gw = gp.x1 - gp.x0 + 1;
+      if (gp.narrow) return "1";
+      var ratios = SEG_BOXES.map(function (sg) {
+        var on = 0, tot = 0;
+        for (var yy = Math.round(y0 + sg[2] * bandH); yy < Math.round(y0 + sg[3] * bandH); yy++) {
+          for (var xx = Math.round(gp.x0 + sg[0] * gw); xx < Math.round(gp.x0 + sg[1] * gw); xx++) {
+            if (xx < 0 || xx >= w || yy < 0 || yy >= h) continue;
+            tot++; on += fg[yy * w + xx];
+          }
+        }
+        return tot ? on / tot : 0;
+      });
+      var bd = "?", bs = 99;
+      Object.keys(SEG_MAP).forEach(function (pat) {
+        var sc = 0;
+        for (var i2 = 0; i2 < 7; i2++) sc += Math.abs((pat.charAt(i2) === "1" ? 1 : 0) - ratios[i2]);
+        if (sc < bs) { bs = sc; bd = SEG_MAP[pat]; }
+      });
+      return bs < 2.2 ? bd : "?";
+    }).join("");
+    return /^\d{3,8}$/.test(digits) ? digits : null;
+  }
+  /* 囲み方が少し大きくても小さくても読めるように、何通りか試す */
+  function readSevenSeg() {
+    var s = ocrSel, k = 1 / ocrView;
+    var got = null;
+    [0, 0.08, -0.05, 0.18].some(function (pad) {
+      var dx = s.w * k * pad, dy = s.h * k * pad;
+      var r = sevenSeg(Math.max(0, s.x * k - dx), Math.max(0, s.y * k - dy),
+        Math.max(8, s.w * k + dx * 2), Math.max(8, s.h * k + dy * 2));
+      if (r) got = r;
+      return !!r;
+    });
+    return got;
+  }
+
+  function useOdo(n) {
+    $(ocrField).value = n;
+    $("ocrModal").hidden = true;
+    commitTrip();
+    renderSummaries();
+  }
+  /* 読めなかったときのために、その場で数字を打てる欄も出す */
+  function manualOdoHTML() {
+    return '<div class="ocr-manual"><label class="plan-field" style="margin:0">' +
+      '<span>読めないときは、ここに数字を入れてください</span>' +
+      '<input type="number" id="ocrManual" inputmode="numeric" min="0" step="1" placeholder="例: 45268"></label>' +
+      '<button class="btn btn-primary" id="ocrManualUse">この数字にする</button></div>';
+  }
+  function bindManualOdo() {
+    if (!$("ocrManualUse")) return;
+    $("ocrManualUse").addEventListener("click", function () {
+      var v = parseInt($("ocrManual").value, 10);
+      if (isNaN(v)) { $("ocrManual").focus(); return; }
+      useOdo(v);
+    });
+  }
+  function showCands(list, exp, note, preview) {
+    $("ocrNote").innerHTML = note + (preview || "");
+    $("ocrCands").innerHTML = list.map(function (n, i) {
+      return '<button class="btn' + (i === 0 ? " best" : "") + '" data-odo="' + n + '">' + n + "</button>";
+    }).join("") + manualOdoHTML();
+    Array.prototype.forEach.call($("ocrCands").querySelectorAll("[data-odo]"), function (b) {
+      b.addEventListener("click", function () { useOdo(+b.getAttribute("data-odo")); });
+    });
+    bindManualOdo();
   }
   function readOcr() {
     $("ocrRead").disabled = true;
     $("ocrCands").innerHTML = "";
-    $("ocrNote").textContent = "読み取りの準備をしています…（初めてのときは数MBのダウンロードがあります）";
+    /* まずデジタル表示として読む。読めればすぐ出す。 */
+    var segText = readSevenSeg();
+    var segNum = segText ? parseInt(segText, 10) : null;
+    if (segNum) {
+      showCands([segNum], expectedOdo(ocrField),
+        "デジタル表示として読み取りました。正しければ押してください。ほかの候補も探しています…");
+    } else {
+      $("ocrNote").textContent = "読み取りの準備をしています…（初めてのときは数MBのダウンロードがあります）";
+    }
+    var variants = null;
     loadTesseract().then(function (w) {
       $("ocrNote").textContent = "読み取り中…";
-      var crops = ocrCrops();
-      return crops.reduce(function (p, c) {
-        return p.then(function (acc) {
-          return w.recognize(c).then(function (r) { return acc.concat([r.data.text || ""]); });
-        });
-      }, Promise.resolve([]));
+      variants = ocrVariants();
+      var run = function (jobs) {
+        return jobs.reduce(function (p, job) {
+          return p.then(function (acc) {
+            return w.setParameters({ tessedit_pageseg_mode: job.psm })
+              .then(function () { return w.recognize(job.c); })
+              .then(function (r) { return acc.concat([r.data.text || ""]); })
+              ["catch"](function () { return acc; });
+          });
+        }, Promise.resolve([]));
+      };
+      var hasDigits = function (texts) {
+        return texts.some(function (t) { return t.replace(/[^0-9]/g, "").length >= 3; });
+      };
+      /* まず3通りだけ試し、読めなければ残りと別の読み方も試す */
+      return run(variants.slice(0, 3).map(function (c) { return { c: c, psm: "7" }; })).then(function (texts) {
+        if (hasDigits(texts)) return texts;
+        $("ocrNote").textContent = "読み取り中…（別の見え方でも試しています）";
+        var rest = variants.slice(3).map(function (c) { return { c: c, psm: "7" }; })
+          .concat(variants.slice(0, 2).map(function (c) { return { c: c, psm: "13" }; }));
+        return run(rest).then(function (more) { return texts.concat(more); });
+      });
     }).then(function (texts) {
-      var seen = {}, cands = [];
+      var score = {}, cands = [];
+      if (segNum) { score[segNum] = 3; cands.push(segNum); }   /* デジタル表示として読めた分は強めに扱う */
       texts.forEach(function (t) {
         var joined = t.replace(/[^0-9]/g, "");
-        (t.match(/\d{3,7}/g) || []).concat(joined.length >= 3 && joined.length <= 7 ? [joined] : []).forEach(function (s) {
+        var list = (t.match(/\d{3,7}/g) || []);
+        if (joined.length >= 3 && joined.length <= 7) list = list.concat([joined]);
+        list.forEach(function (s) {
           var n = parseInt(s, 10);
-          if (!seen[n]) { seen[n] = 1; cands.push(n); }
+          if (!(n > 0)) return;
+          if (!score[n]) { score[n] = 0; cands.push(n); }
+          score[n]++;   /* 何通りの見え方で同じ数字が出たか */
         });
       });
       var exp = expectedOdo(ocrField);
-      if (exp) {
-        cands.sort(function (a, b) {
-          var ia = a >= exp.min && a <= exp.max ? 0 : 1, ib = b >= exp.min && b <= exp.max ? 0 : 1;
-          return ia - ib || Math.abs(a - exp.v) - Math.abs(b - exp.v);
-        });
-      } else {
-        cands.sort(function (a, b) { return String(b).length - String(a).length; });
-      }
-      cands = cands.slice(0, 4);
+      var fits = function (n) { return exp && n >= exp.min && n <= exp.max ? 0 : 1; };
+      cands.sort(function (a, b) {
+        return fits(a) - fits(b) || score[b] - score[a] ||
+          (exp ? Math.abs(a - exp.v) - Math.abs(b - exp.v) : String(b).length - String(a).length);
+      });
+      cands = cands.slice(0, 5);
       $("ocrRead").disabled = false;
+      $("ocrRead").textContent = "もう一度読む";
+      var preview = variants && variants[0] ? '<img class="ocr-prev" alt="読み取りに使った画像" src="' + variants[0].toDataURL("image/png") + '">' : "";
       if (!cands.length) {
-        $("ocrNote").textContent = "数字を読み取れませんでした。数字の部分だけをもう少し小さく囲んで、もう一度押してください。";
+        $("ocrNote").innerHTML = "数字を読み取れませんでした。下のように見えています。数字だけがはっきり入るように囲み直して、もう一度押してください。" + preview;
+        $("ocrCands").innerHTML = manualOdoHTML();
+        bindManualOdo();
         return;
       }
-      $("ocrNote").textContent = "読み取った数字です。正しいものを押してください。" +
-        (exp ? "前回の記録に近い順に並べています。" : "") + "違う場合は、囲み直すか手で入れてください。";
-      $("ocrCands").innerHTML = cands.map(function (n, i) {
-        return '<button class="btn' + (i === 0 ? " best" : "") + '" data-odo="' + n + '">' + n + "</button>";
-      }).join("");
-      Array.prototype.forEach.call($("ocrCands").querySelectorAll("[data-odo]"), function (b) {
-        b.addEventListener("click", function () {
-          $(ocrField).value = b.getAttribute("data-odo");
-          $("ocrModal").hidden = true;
-          commitTrip();
-          renderSummaries();
-        });
-      });
+      showCands(cands, exp, "読み取った数字です。正しいものを押してください。" +
+        (exp ? "前回の記録に近い順に並べています。" : ""), preview);
     })["catch"](function () {
       $("ocrRead").disabled = false;
-      $("ocrNote").textContent = "読み取りの部品を読み込めませんでした。電波のある場所でもう一度試してください。";
+      $("ocrNote").textContent = "読み取りの部品を読み込めませんでした。電波のある場所で試すか、下の欄に数字を入れてください。";
+      $("ocrCands").innerHTML = manualOdoHTML();
+      bindManualOdo();
     });
   }
 
@@ -4211,6 +4719,9 @@
   $("planCard").addEventListener("toggle", function () {
     if ($("planCard").open && !$("planBody").innerHTML) buildPlanBody();
   });
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) checkNear();
+  });
   window.addEventListener("hashchange", function () {
     var p = planFromText(location.hash);
     if (p) { planInbox = p; renderPlanInbox(); window.scrollTo(0, 0); }
@@ -4218,6 +4729,8 @@
 
   /* ---------- boot ---------- */
   records = readLS(LS_REC, []);
+  offDays = readLS(LS_OFF, {}) || {};
+  offAuto = readLS(LS_OFFAUTO, {}) || {};
   plans = readLS(LS_PLAN, {}) || {};
   (function () {
     /* 1週間より前の段取りは消す */
@@ -4226,6 +4739,7 @@
     Object.keys(plans).forEach(function (d) { if (d < lk) { delete plans[d]; changed = true; } });
     if (changed) savePlans();
   })();
+  autoFillOff();
   planInbox = planFromText(location.hash);
   if (!planInbox && location.hash.indexOf("#plan=") === 0) clearPlanHash();
   trips = readLS(LS_TRIP, {}) || {};
@@ -4269,6 +4783,7 @@
   render();
   if (geoDetail) setGeo("fail", "位置情報 使えません");
   setInterval(tick, 1000);
+  if (!geoDetail) setTimeout(checkNear, 600);
 
   $("viewBtn").addEventListener("click", function () {
     view = view === "punch" ? "log" : "punch";

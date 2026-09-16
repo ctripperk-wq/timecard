@@ -194,7 +194,7 @@
       <button class="btn" id="csvBtn">1つのCSVで保存</button>
       <button class="btn" id="clearBtn">読み込みをやり直す</button>
     </div>
-    <p class="note" id="csvNote">Excelは1つのファイルに「勤怠明細」「月別集計」「現場別集計」「現場別明細」「運転日誌」のシートが入ります。現場別明細は、誰がいつどの現場に入ったかを1人1行で並べたものです。勤怠明細は出退勤・拘束・休憩・実働に加え、現場名（日勤／夜勤）・作業内容・作業員（自社／応援／外注）。運転日誌は別シートなので、勤怠のシートが横に長くなりません。どのシートもフィルタ付きで、日付は日付として入ります。</p>
+    <p class="note" id="csvNote">Excelは1つのファイルに「勤怠明細」「月別集計」「現場別集計」「現場別明細」「応援・外注」「運転日誌」のシートが入ります。現場別明細は、誰がいつどの現場に入ったかを1人1行で並べたもの、応援・外注は会社ごとの人工をまとめたもので、請求書との突き合わせに使えます。休日・有給の日は勤怠明細に区分付きで並び、月別集計に日数が出ます。勤怠明細は出退勤・拘束・休憩・実働に加え、現場名（日勤／夜勤）・作業内容・作業員（自社／応援／外注）。運転日誌は別シートなので、勤怠のシートが横に長くなりません。どのシートもフィルタ付きで、日付は日付として入ります。</p>
   </section>
 
   <section class="card" id="blank">
@@ -210,7 +210,7 @@
   var fileInfo = [];    /* 読み込んだファイルの一覧 */
   var issues = [];      /* 重複など、人が確認すべきこと */
 
-  var COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
+  var COLS = ["社員名", "日付", "曜日", "区分", "出勤", "退勤", "拘束時間", "休憩(分)", "実働時間",
     "実働(時間換算)", "現場数", "現場名", "現場名(日勤)", "現場名(夜勤)", "現場ごとの内訳",
     "作業内容", "作業員(自社)", "作業員(応援)", "作業員(外注)",
     "車両", "出発メーター", "帰着メーター", "走行距離(km)", "距離の根拠", "GPS直線距離(km)", "立寄地点数",
@@ -267,6 +267,8 @@
       o["_hours"] = parseFloat(o["実働(時間換算)"]) || 0;
       o["_km"] = parseFloat(o["走行距離(km)"]) || 0;
       o["_file"] = filename;
+      /* 休日・有給など、出勤していない日 */
+      o["_off"] = !!o["区分"] && o["区分"] !== "出勤" && !o["出勤"];
       got.push(o);
     });
     return { rows: got, skipped: skipped, error: null };
@@ -310,8 +312,15 @@
       var m = periodKey(o["日付"]);
       months[m] = 1;
       var p = people[o["社員名"]];
-      if (!p) { p = people[o["社員名"]] = { name: o["社員名"], months: {}, days: 0, hours: 0, km: 0 }; order.push(o["社員名"]); }
-      if (!p.months[m]) p.months[m] = { days: 0, hours: 0, km: 0 };
+      if (!p) { p = people[o["社員名"]] = { name: o["社員名"], months: {}, days: 0, hours: 0, km: 0, off: {} }; order.push(o["社員名"]); }
+      if (!p.months[m]) p.months[m] = { days: 0, hours: 0, km: 0, off: {} };
+      if (o["_off"]) {
+        /* 休日・有給は出勤日数に入れず、区分ごとに数える */
+        var kind = o["区分"];
+        p.months[m].off[kind] = (p.months[m].off[kind] || 0) + 1;
+        p.off[kind] = (p.off[kind] || 0) + 1;
+        return;
+      }
       p.months[m].days++; p.months[m].hours += o["_hours"]; p.months[m].km += o["_km"];
       p.days++; p.hours += o["_hours"]; p.km += o["_km"];
     });
@@ -347,6 +356,7 @@
   function siteEntries(list) {
     var map = {}, out = [];
     list.forEach(function (o) {
+      if (o["_off"]) return;
       var sess = null;
       if (o["現場明細(集計用)"]) { try { sess = JSON.parse(o["現場明細(集計用)"]); } catch (e) { sess = null; } }
       if (!Array.isArray(sess) || !sess.length) sess = fallbackSessions(o);
@@ -440,6 +450,32 @@
     return out;
   }
   function r2(n) { return Math.round(n * 100) / 100; }
+
+  /* 応援・外注を会社ごとにまとめる（請求書との突き合わせ用） */
+  function helperSummary(entries) {
+    var map = {}, out = [];
+    entries.forEach(function (e) {
+      if (e.kind === "own") return;
+      var co = e.co || "（会社名なし）";
+      var key = e.month + "" + co + "" + e.name;
+      var s = map[key];
+      if (!s) {
+        s = map[key] = { month: e.month, kind: e.kind, co: co, name: e.name, share: 0, hours: 0,
+          dates: {}, places: [], first: e.date, last: e.date };
+        out.push(s);
+      }
+      s.share += e.share; s.hours += e.hours; s.dates[e.date] = 1;
+      if (s.places.indexOf(e.place) < 0) s.places.push(e.place);
+      if (e.date < s.first) s.first = e.date;
+      if (e.date > s.last) s.last = e.date;
+    });
+    out.forEach(function (s) { s.days = Object.keys(s.dates).length; });
+    out.sort(function (a, b) {
+      return a.month.localeCompare(b.month) || KIND_ORDER[a.kind] - KIND_ORDER[b.kind] ||
+        a.co.localeCompare(b.co, "ja") || b.share - a.share;
+    });
+    return out;
+  }
   function whoText(s) {
     return s.list.map(function (p) { return p.who + " " + r2(p.share); }).join("、");
   }
@@ -490,10 +526,13 @@
     var sum = summarize(list);
     var totalHours = list.reduce(function (a, o) { return a + o["_hours"]; }, 0);
     var totalKm = list.reduce(function (a, o) { return a + o["_km"]; }, 0);
+    var workDays = list.filter(function (o) { return !o["_off"]; }).length;
+    var paidDays = list.filter(function (o) { return o["_off"] && /有給|半休/.test(o["区分"]); }).length;
     $("stats").innerHTML =
       stat("社員数", sum.people.length, "人") +
       stat("対象月度", sum.months.length, "か月") +
-      stat("延べ出勤", list.length, "日") +
+      stat("延べ出勤", workDays, "日") +
+      (paidDays ? stat("有給・半休", paidDays, "日") : "") +
       stat("実働合計", fmtH(totalHours), "時間") +
       (totalKm > 0 ? stat("走行距離", Math.round(totalKm * 10) / 10, "km") : "");
 
@@ -637,7 +676,7 @@
   });
 
   /* 勤怠の明細に出す列（運行記録はここに入れない） */
-  var ATT_COLS = ["社員名", "日付", "曜日", "出勤", "退勤", "拘束時間", "休憩(分)",
+  var ATT_COLS = ["社員名", "日付", "曜日", "区分", "出勤", "退勤", "拘束時間", "休憩(分)",
     "実働時間", "実働(時間換算)",
     "現場名(日勤)", "現場名(夜勤)", "作業内容",
     "作業員(自社)", "作業員(応援)", "作業員(外注)",
@@ -667,12 +706,20 @@
       detail.push(ATT_COLS.map(function (c) { return cellOf(o, c); }));
     });
 
-    var head2 = ["社員名"].concat(sum.months.map(monthLabel)).concat(["合計(時間)", "合計(日数)"]);
+    /* 休みの区分は、出てきたものだけ列にする */
+    var offKinds = [];
+    sum.people.forEach(function (p) {
+      Object.keys(p.off || {}).forEach(function (k) { if (offKinds.indexOf(k) < 0) offKinds.push(k); });
+    });
+    offKinds.sort();
+    var head2 = ["社員名"].concat(sum.months.map(monthLabel))
+      .concat(["合計(時間)", "合計(日数)"]).concat(offKinds.map(function (k) { return k + "(日)"; }));
     var summary = [head2];
     sum.people.forEach(function (p) {
       summary.push([p.name].concat(sum.months.map(function (m) {
         return p.months[m] ? { n: Math.round(p.months[m].hours * 100) / 100 } : "";
-      })).concat([{ n: Math.round(p.hours * 100) / 100 }, { i: p.days }]));
+      })).concat([{ n: Math.round(p.hours * 100) / 100 }, { i: p.days }])
+        .concat(offKinds.map(function (k) { return p.off && p.off[k] ? { i: p.off[k] } : ""; })));
     });
     var gh = 0, gd = 0;
     summary.push(["全員合計"].concat(sum.months.map(function (m) {
@@ -734,11 +781,34 @@
         { n: r2(e.share) }, { n: r2(e.hours) }, e.night ? "夜勤" : "日勤", e.tasks.join(" ／ "), e.by.join("、")]);
     });
 
+    /* 応援・外注は、会社ごとに1枚にまとめて別シートにする */
+    var helpers = helperSummary(entries);
+    var helperRows = [["月度", "区分", "会社名", "氏名", "人工", "日数", "時間(目安)", "初日", "最終日", "入った現場"]];
+    var block = null;
+    var pushTotal = function () {
+      if (!block || block.rows < 2) { block = null; return; }
+      helperRows.push([monthLabel(block.month), KIND_LABEL[block.kind], block.co, "合計",
+        { n: r2(block.share) }, { i: block.days }, { n: r2(block.hours) }, "", "", ""]);
+      block = null;
+    };
+    helpers.forEach(function (s) {
+      var key = s.month + "" + s.kind + "" + s.co;
+      if (!block || block.key !== key) {
+        pushTotal();
+        block = { key: key, month: s.month, kind: s.kind, co: s.co, share: 0, days: 0, hours: 0, rows: 0 };
+      }
+      block.share += s.share; block.days += s.days; block.hours += s.hours; block.rows++;
+      helperRows.push([monthLabel(s.month), KIND_LABEL[s.kind], s.co, s.name,
+        { n: r2(s.share) }, { i: s.days }, { n: r2(s.hours) }, { d: s.first }, { d: s.last }, s.places.join("、")]);
+    });
+    pushTotal();
+
     var sheets = [{ name: "勤怠明細", rows: detail }, { name: "月別集計", rows: summary }];
     if (siteRows.length > 1) {
       sheets.push({ name: "現場別集計", rows: siteRows });
       sheets.push({ name: "現場別明細", rows: siteDetail });
     }
+    if (helperRows.length > 1) sheets.push({ name: "応援・外注", rows: helperRows });
     if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
     saveBlob(buildXlsx(sheets), "タイムカード集計-" + stamp() + ".xlsx");
   });
