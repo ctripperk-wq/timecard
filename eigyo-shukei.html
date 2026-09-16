@@ -137,6 +137,15 @@
   tr:last-child td { border-bottom: 0; }
   tbody tr.total td { font-weight: 700; background: var(--surface-2); }
   .sub-title { font-size: 15px; font-weight: 700; margin: 22px 0 6px; }
+  .trend { display: grid; gap: 14px; }
+  .trend-card { background: var(--surface-2); border-radius: 11px; padding: 12px 14px; }
+  .trend-head { font-size: 12.5px; color: var(--ink-2); margin-bottom: 10px; }
+  .trend-rows { display: grid; gap: 7px; }
+  .trend-row { display: grid; grid-template-columns: 7.5em 1fr 4.5em; gap: 8px; align-items: center; }
+  .trend-row > span:first-child { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trend-bar { background: var(--line); border-radius: 5px; height: 14px; overflow: hidden; }
+  .trend-bar i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+  .trend-val { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; text-align: right; }
   td.who { white-space: normal; min-width: 16em; font-size: 12.5px; line-height: 1.55; }
   td.who small { color: var(--ink-3); }
   tbody tr.month td { background: var(--surface-2); font-weight: 700; font-size: 12px; color: var(--ink-2); }
@@ -186,6 +195,8 @@
     <div id="lawBox"></div>
     <div id="warnBox"></div>
     <div class="tablewrap"><table id="summary"></table></div>
+    <h3 class="sub-title">月ごとの推移</h3>
+    <div id="trendBox"></div>
     <h3 class="sub-title">訪問先別の人工</h3>
     <p class="note" style="margin:0 0 8px">1人が1日いっぱい入ると1人工です。1日に複数の訪問先を回った日は、滞在時間で按分しています。応援・外注の方も含みます。</p>
     <div class="tablewrap"><table id="siteTable"></table></div>
@@ -585,6 +596,25 @@
     }).join("") + "<td class='num'>" + fmtH(totalHours) + " <small>(" + list.length + "日)</small></td></tr>";
     $("summary").innerHTML = "<thead>" + head + "</thead><tbody>" + body + foot + "</tbody>";
 
+    /* 月ごとの推移（画面用の簡単な棒グラフ） */
+    var trendDefs = [
+      { label: "実働時間", unit: "h", get: function (c) { return c ? Math.round(c.hours * 10) / 10 : 0; } },
+      { label: "出勤日数", unit: "日", get: function (c) { return c ? c.days : 0; } }
+    ];
+    if (totalKm > 0) trendDefs.push({ label: "走行距離", unit: "km", get: function (c) { return c ? Math.round(c.km * 10) / 10 : 0; } });
+    $("trendBox").innerHTML = '<div class="trend">' + trendDefs.map(function (def) {
+      var vals = sum.months.map(function (m) {
+        return sum.people.reduce(function (a, p) { return a + def.get(p.months[m]); }, 0);
+      }).map(function (v) { return Math.round(v * 10) / 10; });
+      var max = Math.max.apply(null, vals.concat([1]));
+      return '<div class="trend-card"><div class="trend-head">' + def.label + "（全員の合計）</div>" +
+        '<div class="trend-rows">' + sum.months.map(function (m, i) {
+          return '<div class="trend-row"><span>' + esc(monthLabel(m).replace(/\(.*/, "")) + "</span>" +
+            '<span class="trend-bar"><i style="width:' + Math.max(2, Math.round(vals[i] / max * 100)) + '%"></i></span>' +
+            '<span class="trend-val">' + vals[i] + def.unit + "</span></div>";
+        }).join("") + "</div></div>";
+    }).join("") + "</div>";
+
     var sites = siteSummary(siteEntries(list));
     var lastMonth = "";
     $("siteTable").innerHTML =
@@ -809,6 +839,51 @@
       sheets.push({ name: "訪問先別明細", rows: siteDetail });
     }
     if (helperRows.length > 1) sheets.push({ name: "応援・外注", rows: helperRows });
+
+    /* 推移のシート：月ごとの表と棒グラフ */
+    if (sum.months.length) {
+      var TR = "推移";
+      var cats = sum.months.map(monthLabel);
+      var lastCol = colName(sum.months.length + 1);
+      var trend = [], blocks = {};
+      var addBlock = function (label, pick) {
+        var start = trend.length + 1;                     /* 見出し行（1から数える） */
+        trend.push([label].concat(cats));
+        sum.people.forEach(function (p) {
+          trend.push([p.name].concat(sum.months.map(function (m) { return { n: pick(p, m) }; })));
+        });
+        blocks[label] = { head: start, first: start + 1, values: sum.people.map(function (p) {
+          return sum.months.map(function (m) { return pick(p, m); });
+        }) };
+        trend.push([]);
+      };
+      addBlock("実働時間（時間）", function (p, m) { return p.months[m] ? r2(p.months[m].hours) : 0; });
+      addBlock("出勤日数（日）", function (p, m) { return p.months[m] ? p.months[m].days : 0; });
+      var hasKm = sum.people.some(function (p) { return p.km > 0; });
+      if (hasKm) addBlock("走行距離（km）", function (p, m) { return p.months[m] ? r2(p.months[m].km) : 0; });
+
+      var chartRow = trend.length + 1;
+      var charts = Object.keys(blocks).map(function (label, bi) {
+        var b = blocks[label];
+        var spec = {
+          title: label.replace(/（.*/, "") + "の推移",
+          catRef: "'" + TR + "'!$B$" + b.head + ":$" + lastCol + "$" + b.head,
+          cats: cats,
+          series: sum.people.map(function (p, pi) {
+            var row = b.first + pi;
+            return {
+              name: p.name,
+              nameRef: "'" + TR + "'!$A$" + row,
+              valRef: "'" + TR + "'!$B$" + row + ":$" + lastCol + "$" + row,
+              values: b.values[pi]
+            };
+          }),
+          row: chartRow + bi * 19
+        };
+        return spec;
+      });
+      sheets.push({ name: TR, rows: trend, charts: charts });
+    }
     if (tripRows.length > 1) sheets.push({ name: "運転日誌", rows: tripRows });
     saveBlob(buildXlsx(sheets), "営業タイムカード集計-" + stamp() + ".xlsx");
   });
@@ -841,7 +916,7 @@
     return w;
   }
 
-  function sheetXml(rowsIn) {
+  function sheetXml(rowsIn, hasDrawing) {
     var maxCol = 0;
     rowsIn.forEach(function (r) { if (r.length > maxCol) maxCol = r.length; });
     var body = rowsIn.map(function (r, ri) {
@@ -865,10 +940,11 @@
     }).join("");
     var last = colName(maxCol) + rowsIn.length;
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
       '<dimension ref="A1:' + last + '"/>' +
       '<sheetViews><sheetView workbookViewId="0">' +
-      '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+      (hasDrawing ? "" : '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>') +
       "</sheetView></sheetViews>" +
       '<sheetFormatPr defaultRowHeight="15"/>' +
       "<cols>" + rowsIn[0].map(function (h, i) {
@@ -880,13 +956,85 @@
         return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
       }).join("") + "</cols>" +
       "<sheetData>" + body + "</sheetData>" +
-      '<autoFilter ref="A1:' + last + '"/>' +
+      (hasDrawing ? "" : '<autoFilter ref="A1:' + last + '"/>') +
+      (hasDrawing ? '<drawing r:id="rId1"/>' : "") +
       "</worksheet>";
+  }
+
+  /* ---------- グラフ（棒グラフ）を作る ----------
+     Excelのグラフは chart の XML と、それを貼り付ける drawing の XML でできている。 */
+  function chartXml(spec) {
+    var axA = 411111111, axB = 422222222;
+    var cats = '<c:cat><c:strRef><c:f>' + xmlEsc(spec.catRef) + "</c:f><c:strCache>" +
+      '<c:ptCount val="' + spec.cats.length + '"/>' +
+      spec.cats.map(function (c, j) { return '<c:pt idx="' + j + '"><c:v>' + xmlEsc(c) + "</c:v></c:pt>"; }).join("") +
+      "</c:strCache></c:strRef></c:cat>";
+    var ser = spec.series.map(function (s, i) {
+      return '<c:ser><c:idx val="' + i + '"/><c:order val="' + i + '"/>' +
+        '<c:tx><c:strRef><c:f>' + xmlEsc(s.nameRef) + "</c:f><c:strCache><c:ptCount val=\"1\"/>" +
+        '<c:pt idx="0"><c:v>' + xmlEsc(s.name) + "</c:v></c:pt></c:strCache></c:strRef></c:tx>" +
+        cats +
+        '<c:val><c:numRef><c:f>' + xmlEsc(s.valRef) + "</c:f><c:numCache>" +
+        "<c:formatCode>General</c:formatCode>" +
+        '<c:ptCount val="' + s.values.length + '"/>' +
+        s.values.map(function (v, j) {
+          return (v == null || isNaN(v)) ? "" : '<c:pt idx="' + j + '"><c:v>' + v + "</c:v></c:pt>";
+        }).join("") +
+        "</c:numCache></c:numRef></c:val></c:ser>";
+    }).join("");
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+      'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      "<c:chart>" +
+      "<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>" + xmlEsc(spec.title) +
+      "</a:t></a:r></a:p></c:rich></c:tx><c:overlay val=\"0\"/></c:title>" +
+      '<c:autoTitleDeleted val="0"/>' +
+      "<c:plotArea><c:layout/>" +
+      '<c:barChart><c:barDir val="col"/><c:grouping val="clustered"/><c:varyColors val="0"/>' +
+      ser +
+      '<c:gapWidth val="70"/><c:overlap val="-10"/>' +
+      '<c:axId val="' + axA + '"/><c:axId val="' + axB + '"/></c:barChart>' +
+      '<c:catAx><c:axId val="' + axA + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>' +
+      '<c:delete val="0"/><c:axPos val="b"/><c:crossAx val="' + axB + '"/></c:catAx>' +
+      '<c:valAx><c:axId val="' + axB + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>' +
+      '<c:delete val="0"/><c:axPos val="l"/><c:majorGridlines/><c:crossAx val="' + axA + '"/></c:valAx>' +
+      "</c:plotArea>" +
+      '<c:legend><c:legendPos val="b"/><c:overlay val="0"/></c:legend>' +
+      '<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>' +
+      "</c:chart></c:chartSpace>";
+  }
+  function drawingXml(charts) {
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" ' +
+      'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      charts.map(function (c, i) {
+        return "<xdr:twoCellAnchor>" +
+          "<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>" + c.row +
+          "</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>" +
+          "<xdr:to><xdr:col>8</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>" + (c.row + 18) +
+          "</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>" +
+          '<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr>' +
+          '<xdr:cNvPr id="' + (i + 2) + '" name="グラフ ' + (i + 1) + '"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>' +
+          '<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>' +
+          '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">' +
+          '<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" ' +
+          'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId' + (i + 1) + '"/>' +
+          "</a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>";
+      }).join("") + "</xdr:wsDr>";
   }
 
   function buildXlsx(sheets) {
     var files = [];
     var add = function (name, text) { files.push({ name: name, data: utf8(text) }); };
+    /* グラフのあるシートを先に数えておく */
+    var chartSheets = [];
+    sheets.forEach(function (s, i) { if (s.charts && s.charts.length) chartSheets.push({ sheet: i, charts: s.charts }); });
+    var chartNo = 0;
+    chartSheets.forEach(function (cs) {
+      cs.first = chartNo + 1;
+      chartNo += cs.charts.length;
+    });
 
     add("[Content_Types].xml",
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -897,6 +1045,14 @@
       sheets.map(function (s, i) {
         return '<Override PartName="/xl/worksheets/sheet' + (i + 1) +
           '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+      }).join("") +
+      chartSheets.map(function (cs, di) {
+        return '<Override PartName="/xl/drawings/drawing' + (di + 1) +
+          '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' +
+          cs.charts.map(function (c, ci) {
+            return '<Override PartName="/xl/charts/chart' + (cs.first + ci) +
+              '.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>';
+          }).join("");
       }).join("") +
       '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
       "</Types>");
@@ -943,7 +1099,24 @@
       '<xf numFmtId="2" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
       "</cellXfs></styleSheet>");
 
-    sheets.forEach(function (s, i) { add("xl/worksheets/sheet" + (i + 1) + ".xml", sheetXml(s.rows)); });
+    sheets.forEach(function (s, i) { add("xl/worksheets/sheet" + (i + 1) + ".xml", sheetXml(s.rows, !!(s.charts && s.charts.length))); });
+
+    chartSheets.forEach(function (cs, di) {
+      add("xl/worksheets/_rels/sheet" + (cs.sheet + 1) + ".xml.rels",
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing' + (di + 1) + '.xml"/>' +
+        "</Relationships>");
+      add("xl/drawings/drawing" + (di + 1) + ".xml", drawingXml(cs.charts));
+      add("xl/drawings/_rels/drawing" + (di + 1) + ".xml.rels",
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        cs.charts.map(function (c, ci) {
+          return '<Relationship Id="rId' + (ci + 1) +
+            '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="../charts/chart' + (cs.first + ci) + '.xml"/>';
+        }).join("") + "</Relationships>");
+      cs.charts.forEach(function (c, ci) { add("xl/charts/chart" + (cs.first + ci) + ".xml", chartXml(c)); });
+    });
     return zip(files);
   }
 

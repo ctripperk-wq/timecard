@@ -677,6 +677,10 @@
   .forgot { border: 2px solid var(--out); }
   .forgot .card-title { color: var(--out); }
   .forgot-lead { font-size: 14px; margin: 0 0 12px; line-height: 1.6; }
+  .mistake { border: 2px solid var(--amber); }
+  .mistake .card-title { color: var(--amber); }
+  .mistake-list { margin: 0 0 4px; padding-left: 1.2em; font-size: 13.5px; line-height: 1.6; }
+  .mistake-list li { margin-bottom: 4px; }
   .forgot-row { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
   .forgot-row > span { font-size: 14px; font-weight: 700; }
   .forgot .tf input { font-size: 22px; width: 3.2em; padding: 8px 6px; text-align: center; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); }
@@ -980,6 +984,7 @@
       <section class="card inbox" id="planInbox" hidden></section>
       <section class="card forgot" id="forgotCard" hidden></section>
       <section class="card inbox" id="nearCard" hidden></section>
+      <section class="card mistake" id="mistakeCard" hidden></section>
       <div class="quick" id="closeQuick" hidden></div>
       <section class="card" id="gate" hidden>
         <div class="card-head"><h2 class="card-title">はじめに</h2></div>
@@ -1721,6 +1726,7 @@
     renderPlanInbox();
     renderForgot();
     renderNear();
+    renderMistakes();
     renderCloseQuick();
     renderTripQuick();
     renderHistory();
@@ -4201,6 +4207,63 @@
     });
   }
 
+  /* ================= 入力ミスのチェック =================
+     その場で気づけるように、おかしい値を見つけたら知らせる。直すかどうかは本人が決める。 */
+  var LONG_HOLD_MS = 12 * 3600000;
+  var LONG_KM = 300;
+  function dayMistakes(d) {
+    var out = [];
+    if (!d) return out;
+    var today = dateKey(new Date());
+    if (d.holdMs > LONG_HOLD_MS) out.push("拘束が " + fmtHM(d.holdMs) + " と長すぎます。退勤の時刻を確かめてください。");
+    if (d.breakMin * 60000 > d.holdMs && !d.open) out.push("休憩（" + fmtHM(d.breakMin * 60000) + "）が拘束より長くなっています。");
+    d.sessions.forEach(function (r, i) {
+      if (r.outAt && r.outAt <= r.inAt) out.push((r.place || "訪問先名なし") + "の退勤が出勤より前になっています。");
+      if (r.inAt > Date.now() + 60000) out.push((r.place || "訪問先名なし") + "の出勤が、まだ来ていない時刻です。");
+      var prev = d.sessions[i - 1];
+      if (prev && prev.outAt && r.inAt < prev.outAt) out.push("打刻の時間が重なっています（" + clockOf(r.inAt) + " と " + clockOf(prev.outAt) + "）。");
+      if (prev && prev.outAt && r.place && prev.place === r.place && r.inAt - prev.outAt < 10 * 60000) {
+        out.push("同じ訪問先「" + r.place + "」がすぐに2件に分かれています。二重打刻かもしれません。");
+      }
+    });
+    var t = tripOf(d.date);
+    if (t.odoStart != null && t.odoEnd != null) {
+      if (t.odoEnd < t.odoStart) out.push("帰着メーター（" + t.odoEnd + "）が出発メーター（" + t.odoStart + "）より小さいです。");
+      else if (t.odoEnd - t.odoStart > LONG_KM) out.push("走行距離が " + (t.odoEnd - t.odoStart) + "km と大きすぎないか確かめてください。");
+    }
+    if (t.vehicle && t.odoStart != null) {
+      var prevKey = Object.keys(trips).filter(function (x) {
+        return x < d.date && trips[x].vehicle === t.vehicle && typeof trips[x].odoEnd === "number";
+      }).sort().pop();
+      if (prevKey && t.odoStart < trips[prevKey].odoEnd) {
+        out.push("出発メーターが、前回（" + prevKey.slice(5).replace("-", "/") + "）の帰着 " + trips[prevKey].odoEnd + "km より小さいです。");
+      }
+    }
+    if (d.date > today) out.push("日付が先の日になっています。");
+    return out;
+  }
+  function renderMistakes() {
+    var box = $("mistakeCard");
+    var d = meName && view === "punch" ? dayOf(dateKey(new Date())) : null;
+    var list = d ? dayMistakes(d) : [];
+    if (!list.length || mistakeSkipped === dateKey(new Date())) { box.hidden = true; box.innerHTML = ""; return; }
+    box.innerHTML = '<div class="card-head"><h2 class="card-title">入力を確かめてください</h2>' +
+      '<span class="card-note">' + list.length + " 件</span></div>" +
+      '<ul class="mistake-list">' + list.map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul>" +
+      '<div class="prev-actions"><button class="btn btn-primary" id="mkFix">本日の打刻を開く</button>' +
+      '<button class="btn" id="mkSkip">このままでよい</button></div>';
+    box.hidden = false;
+    $("mkFix").addEventListener("click", function () {
+      $("todayCard").open = true;
+      try { $("todayCard").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { $("todayCard").scrollIntoView(); }
+    });
+    $("mkSkip").addEventListener("click", function () {
+      mistakeSkipped = dateKey(new Date());
+      renderMistakes();
+    });
+  }
+  var mistakeSkipped = "";
+
   /* ================= 締めチェック ================= */
   function closeEnd(key) {
     var r = periodRange(key);
@@ -4236,6 +4299,7 @@
         if (!alcOf(d.date, "pre")) items.push("乗務前チェック");
         if (!alcOf(d.date, "post")) items.push("乗務後チェック");
       }
+      dayMistakes(d).forEach(function (m) { items.push(m.split("。")[0]); });
       return items.length ? { date: d.date, key: d.key, items: items } : null;
     }).filter(Boolean);
   }
