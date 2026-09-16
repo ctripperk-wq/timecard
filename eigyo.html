@@ -452,7 +452,7 @@
   .veh-recent .rc-label { font-size: 11px; color: var(--ink-2); align-self: center; margin-right: 2px; }
 
   /* ---------- 出発地・帰着地 ---------- */
-  .basewrap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .basewrap { display: grid; gap: 10px; margin-bottom: 12px; }
   .baseitem > span {
     display: block; font-size: 11px; letter-spacing: .08em; color: var(--ink-3);
     font-family: "IBM Plex Mono", monospace; margin-bottom: 5px;
@@ -1025,12 +1025,12 @@
         <div class="basewrap">
           <div class="baseitem"><span>出発地</span>
             <div class="seg" id="segFrom">
-              <button data-from="home">自宅</button><button data-from="office">会社</button>
+              <button data-from="home">自宅</button><button data-from="homeOffice">自宅→会社</button><button data-from="office">会社</button>
             </div>
           </div>
           <div class="baseitem"><span>帰着地</span>
             <div class="seg" id="segTo">
-              <button data-to="home">自宅</button><button data-to="office">会社</button>
+              <button data-to="home">自宅</button><button data-to="officeHome">会社→自宅</button><button data-to="office">会社</button>
             </div>
           </div>
         </div>
@@ -1697,7 +1697,7 @@
     var from = p.from || "home", to = p.to || from;
     box.innerHTML =
       '<div class="quick-text"><b>運行記録を前回と同じで入れる</b>' +
-      esc(p.vehicle) + " ・ " + BASE_LABEL[from] + "から出発 ・ " + BASE_LABEL[to] + "に帰着" +
+      esc(p.vehicle) + " ・ " + baseStartText(from) + " ・ " + baseEndText(to) +
       (manager ? " ・ 確認者 " + esc(manager) : "") + "</div>" +
       '<button class="btn btn-primary" id="quickUse">同じ内容で入れる</button>' +
       '<button class="btn" id="quickSkip">今日は違う</button>';
@@ -1898,7 +1898,7 @@
   /* ---------- 今日の動き（時系列） ---------- */
   function timelineHTML(day) {
     var c = baseChoice(day.date);
-    var items = [{ kind: "base", main: BASE_LABEL[c.from] + "から出発" }];
+    var items = [{ kind: "base", main: baseStartText(c.from) }];
     day.sessions.forEach(function (r, i) {
       var prev = day.sessions[i - 1];
       if (prev && prev.outAt) items.push({ kind: "move", sub: "移動 " + fmtHM(r.inAt - prev.outAt) });
@@ -1917,7 +1917,7 @@
         ? { kind: "out", time: clockOf(r.outAt), main: "退勤", sub: "拘束 " + fmtHM(r.outAt - r.inAt) }
         : { kind: "stay", sub: "勤務中 " + fmtHM(Date.now() - r.inAt) });
     });
-    if (!day.open) items.push({ kind: "base", main: BASE_LABEL[c.to] + "に帰着" });
+    if (!day.open) items.push({ kind: "base", main: baseEndText(c.to) });
     return '<ul class="tl">' + items.map(function (it) {
       return '<li data-kind="' + it.kind + '">' +
         '<span class="tl-time mono">' + (it.time || "") + "</span>" +
@@ -2486,7 +2486,20 @@
   }
 
   /* ---------- 出発地・帰着地（直行直帰／会社経由） ---------- */
-  var BASE_LABEL = { home: "自宅", office: "会社" };
+  /* 出発地・帰着地。自宅から会社に寄ってから訪問先へ向かう日があるので、経由の組み合わせも選べる。 */
+  var BASE_LABEL = { home: "自宅", office: "会社", homeOffice: "自宅→会社", officeHome: "会社→自宅" };
+  var BASE_POINTS = { home: ["home"], office: ["office"], homeOffice: ["home", "office"], officeHome: ["office", "home"] };
+  var BASE_FROM_KEYS = ["home", "homeOffice", "office"];
+  var BASE_TO_KEYS = ["home", "officeHome", "office"];
+  function baseStartText(k) {
+    return k === "homeOffice" ? "自宅を出て会社に寄る" : BASE_LABEL[k] + "から出発";
+  }
+  function baseEndText(k) {
+    return k === "officeHome" ? "会社に寄ってから自宅に帰着" : BASE_LABEL[k] + "に帰着";
+  }
+  function basePoints(k) {
+    return (BASE_POINTS[k] || []).filter(function (b) { return bases[b]; });
+  }
   /* 会社（広島県廿日市市木材港北）の位置。町名から求めたおおよその位置なので、
      正確な場所は各自「会社を変更」から地図で直せる。 */
   var DEFAULT_OFFICE = { lat: 34.350595, lng: 132.3461, acc: 0, approx: true };
@@ -2506,8 +2519,12 @@
     if (!pts.length) return [];
     var c = baseChoice(day.date);
     var out = pts.slice();
-    if (bases[c.from]) out.unshift({ t: 0, loc: bases[c.from], place: BASE_LABEL[c.from], kind: "発" });
-    if (bases[c.to]) out.push({ t: Infinity, loc: bases[c.to], place: BASE_LABEL[c.to], kind: "着" });
+    basePoints(c.from).slice().reverse().forEach(function (b) {
+      out.unshift({ t: 0, loc: bases[b], place: BASE_LABEL[b], kind: "発" });
+    });
+    basePoints(c.to).forEach(function (b) {
+      out.push({ t: Infinity, loc: bases[b], place: BASE_LABEL[b], kind: "着" });
+    });
     return out;
   }
 
@@ -3075,16 +3092,17 @@
   /* 出発地・帰着地の選択と、拠点の位置登録 */
   function renderBases(date) {
     var c = baseChoice(date);
-    ["home", "office"].forEach(function (k) {
-      var fb = $("segFrom").querySelector('[data-from="' + k + '"]');
-      var tb = $("segTo").querySelector('[data-to="' + k + '"]');
-      fb.setAttribute("aria-pressed", c.from === k ? "true" : "false");
-      tb.setAttribute("aria-pressed", c.to === k ? "true" : "false");
+    BASE_FROM_KEYS.forEach(function (k) {
+      $("segFrom").querySelector('[data-from="' + k + '"]').setAttribute("aria-pressed", c.from === k ? "true" : "false");
+    });
+    BASE_TO_KEYS.forEach(function (k) {
+      $("segTo").querySelector('[data-to="' + k + '"]').setAttribute("aria-pressed", c.to === k ? "true" : "false");
     });
 
     var missing = [];
-    if (!bases[c.from]) missing.push(c.from);
-    if (c.to !== c.from && !bases[c.to]) missing.push(c.to);
+    (BASE_POINTS[c.from] || []).concat(BASE_POINTS[c.to] || []).forEach(function (k) {
+      if (!bases[k] && missing.indexOf(k) < 0) missing.push(k);
+    });
     var note = $("baseNote");
     if (missing.length) {
       note.innerHTML = missing.map(function (k) {
@@ -3163,9 +3181,10 @@
     }
     html += '<div class="gps-line"><span>GPSの立寄地点</span><strong class="mono">' + pts.length + " か所</strong></div>";
     var c = baseChoice(today);
+    var fromLabels = basePoints(c.from).map(function (b) { return BASE_LABEL[b]; });
+    var toLabels = basePoints(c.to).map(function (b) { return BASE_LABEL[b]; });
     html += '<div class="gps-line"><span>計算する区間</span><strong>' +
-      (bases[c.from] ? BASE_LABEL[c.from] : "訪問先") + " → 訪問先 → " +
-      (bases[c.to] ? BASE_LABEL[c.to] : "訪問先") + "</strong></div>";
+      fromLabels.concat(["訪問先"]).concat(toLabels).join(" → ") + "</strong></div>";
     html += '<div class="gps-line"><span>直線距離の合計</span><strong class="mono">' +
       (rpts.length > 1 ? sk.toFixed(1) + " km" : "—") + "</strong></div>";
     if (est != null) {
