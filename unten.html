@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F3EEE8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14100C" media="(prefers-color-scheme: dark)">
+<meta name="description" content="私有自動車の業務使用を記録し、運転日誌をExcelで出力する。">
+<title>運転日誌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+  :root {
+    --ground: #F3EEE8;
+    --surface: #FFFFFF;
+    --surface-2: #F8F5F1;
+    --line: #E3DAD0;
+    --line-strong: #CFC2B4;
+    --ink: #221A12;
+    --ink-2: #6B5E51;
+    --ink-3: #978A7C;
+    --accent: #A0521C;
+    --accent-ink: #7C3E13;
+    --accent-soft: #F6E6D9;
+    --accent-line: #E3BFA2;
+    --on-accent: #FFFFFF;
+    --out: #2E6B5A;
+    --out-ink: #1F4E41;
+    --out-soft: #DCEDE7;
+    --on-out: #FFFFFF;
+    --amber: #8A6212;
+    --amber-soft: #F7EBD2;
+    --danger: #B23B2A;
+    --radius: 14px;
+    --shadow-card: 0 1px 0 rgba(34,26,18,.04), 0 10px 26px -18px rgba(34,26,18,.35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #14100C; --surface: #1D1813; --surface-2: #241E18; --line: #352C23; --line-strong: #4A3F34;
+      --ink: #F1E9E0; --ink-2: #BDAE9F; --ink-3: #8C7E70;
+      --accent: #E0925A; --accent-ink: #8E4E1F; --accent-soft: #3A2616; --accent-line: #6B4427; --on-accent: #1B0F06;
+      --out: #5FB89E; --out-ink: #2B6353; --out-soft: #17302A; --on-out: #07140F;
+      --amber: #D9A441; --amber-soft: #2E2413; --danger: #E3735F;
+      --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 12px 28px -18px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14100C; --surface: #1D1813; --surface-2: #241E18; --line: #352C23; --line-strong: #4A3F34;
+    --ink: #F1E9E0; --ink-2: #BDAE9F; --ink-3: #8C7E70;
+    --accent: #E0925A; --accent-ink: #8E4E1F; --accent-soft: #3A2616; --accent-line: #6B4427; --on-accent: #1B0F06;
+    --out: #5FB89E; --out-ink: #2B6353; --out-soft: #17302A; --on-out: #07140F;
+    --amber: #D9A441; --amber-soft: #2E2413; --danger: #E3735F;
+    --shadow-card: 0 1px 0 rgba(0,0,0,.3), 0 12px 28px -18px rgba(0,0,0,.8);
+  }
+  html { color-scheme: light dark; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, system-ui, sans-serif;
+    font-size: 15px; line-height: 1.65; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+  }
+  [hidden] { display: none !important; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { touch-action: manipulation; }
+  /* 16px未満だと端末が入力時に拡大して戻らないため下げない */
+  input, textarea, select { font-size: 16px; }
+  .wrap {
+    max-width: 640px; margin: 0 auto;
+    padding: calc(18px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+             calc(60px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+  }
+  .top { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); line-height: 1; }
+  .brand-name { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+  .monthnav { display: flex; align-items: center; gap: 4px; }
+  .monthnav button { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 9px; width: 34px; height: 34px; cursor: pointer; font-size: 14px; }
+  .monthnav b { font-size: 15px; padding: 0 6px; white-space: nowrap; }
+  .stack { display: grid; gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 16px; }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .card-title { font-size: 12px; letter-spacing: .1em; color: var(--ink-2); margin: 0; font-weight: 700; }
+  .card-note { font-size: 12px; color: var(--ink-3); }
+  details.card > summary { list-style: none; cursor: pointer; }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary .card-head { margin-bottom: 0; }
+  details.card[open] > summary .card-head { margin-bottom: 12px; }
+  details.card > summary .card-title::after { content: " ▾"; }
+  details.card[open] > summary .card-title::after { content: " ▴"; }
+
+  .field { display: block; margin-bottom: 12px; }
+  .field > span { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; box-sizing: border-box; padding: 11px 12px; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chips:empty { display: none; }
+  .chip {
+    background: var(--surface); border: 1px solid var(--accent-line); color: var(--accent);
+    border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: 13px; font-weight: 500;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .seg { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 10px; }
+  .seg button { flex: 1; border: 0; background: none; cursor: pointer; border-radius: 7px; padding: 8px 6px; font-size: 14px; color: var(--ink-2); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .check { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line-strong); cursor: pointer; margin-bottom: 12px; }
+  .check input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
+  .check.on { background: var(--out-soft); border-color: transparent; }
+  .check small { color: var(--ink-3); font-size: 11.5px; }
+
+  .key {
+    width: 100%; border: 0; cursor: pointer; border-radius: 12px; padding: 16px; margin-top: 4px;
+    background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 0 var(--accent-ink);
+    display: grid; gap: 2px; justify-items: center;
+  }
+  .key b { font-size: 22px; letter-spacing: .25em; text-indent: .25em; }
+  .key span { font-size: 12px; opacity: .85; }
+  .key.end { background: var(--out); color: var(--on-out); box-shadow: 0 4px 0 var(--out-ink); }
+  .key:active { transform: translateY(3px); box-shadow: none; }
+  .key[disabled] { opacity: .5; }
+  .btn { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); padding: 9px 14px; border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; font-weight: 700; }
+  .btn-danger { color: var(--danger); border-color: var(--danger); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .btns .btn-primary { flex: 1 1 160px; }
+  .note { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.6; }
+  .warn { font-size: 13px; color: var(--danger); margin: 8px 0 0; }
+
+  .live { background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+  .live-time { font-size: 30px; font-weight: 500; line-height: 1.1; }
+  .live-sub { font-size: 12.5px; color: var(--ink-2); }
+  .geo { font-size: 12px; color: var(--ink-3); margin-top: 6px; }
+
+  .list { display: grid; gap: 8px; }
+  .trip { border: 1px solid var(--line); border-radius: 11px; padding: 10px 12px; cursor: pointer; background: var(--surface); text-align: left; width: 100%; }
+  .trip.open { border-color: var(--accent); border-width: 2px; }
+  .trip-l1 { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+  .trip-l1 b { font-size: 14px; }
+  .trip-km { font-size: 15px; font-weight: 600; }
+  .trip-l2 { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+  .trip-cost { font-size: 12.5px; color: var(--ink-2); margin-top: 3px; padding-left: 10px; border-left: 2px solid var(--line-strong); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 5px; background: var(--amber-soft); color: var(--amber); margin-right: 4px; }
+  .tag.ok { background: var(--out-soft); color: var(--out); }
+  .tag.ng { background: #F4DAD5; color: var(--danger); }
+  .empty { text-align: center; color: var(--ink-3); font-size: 13px; padding: 18px 6px; }
+
+  .sum { display: grid; gap: 6px; }
+  .sum-line { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+  .sum-line b { font-family: "IBM Plex Mono", monospace; }
+  .sum-total { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; font-size: 16px; font-weight: 700; }
+
+  .editor { border: 2px solid var(--accent); border-radius: 12px; padding: 14px; background: var(--surface); }
+  .tf { display: inline-flex; align-items: center; gap: 4px; }
+  .tf input { width: 3.4em; padding: 10px 6px; text-align: center; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); }
+  .cost-row { border: 1px dashed var(--line-strong); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .cost-row .seg { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="3" y="9" width="24" height="12" rx="4" fill="none" stroke="var(--accent)" stroke-width="2"></rect>
+        <circle cx="9" cy="22" r="3" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"></circle>
+        <circle cx="21" cy="22" r="3" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"></circle>
+        <path d="M8 9l3-4h8l3 4" fill="none" stroke="var(--accent)" stroke-width="2"></path>
+      </svg>
+      <div>
+        <div class="brand-eyebrow">Driving Log</div>
+        <div class="brand-name">運転日誌</div>
+      </div>
+    </div>
+    <div class="monthnav">
+      <button id="mPrev" aria-label="前の月">◀</button>
+      <b id="mLabel"></b>
+      <button id="mNext" aria-label="次の月">▶</button>
+    </div>
+  </header>
+
+  <div class="stack">
+    <section class="card" id="nowCard"></section>
+    <section class="card" id="editCard" hidden></section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">この月の記録</h2>
+        <span class="card-note" id="listNote"></span>
+      </div>
+      <div class="list" id="list"></div>
+      <div class="btns"><button class="btn" id="addManual">あとから手で追加</button></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2 class="card-title">集計</h2><span class="card-note" id="sumNote"></span></div>
+      <div class="sum" id="sum"></div>
+      <div class="row2" style="margin-top:12px">
+        <label class="field"><span>使用開始(a) メーター km</span><input type="number" id="odoA" inputmode="numeric" min="0" step="1"></label>
+        <label class="field"><span>使用終了(b) メーター km</span><input type="number" id="odoB" inputmode="numeric" min="0" step="1"></label>
+      </div>
+      <p class="note" style="margin-top:0">月の最初と最後のメーターです。空けておいてもExcelは出せます。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2 class="card-title">Excelで出力</h2></div>
+      <label class="field"><span>記入日</span><input type="date" id="fillDate"></label>
+      <div class="btns">
+        <button class="btn btn-primary" id="xlsxShare" hidden>LINE・メールで送る</button>
+        <button class="btn" id="xlsxSave">Excelファイルで保存</button>
+      </div>
+      <p class="note" id="xlsxNote">様式と同じ見た目のExcel（A4縦1枚）で出ます。「交」の欄はExcelでもプルダウンで選べ、交際費の合計が自動で計算されます。</p>
+    </section>
+
+    <details class="card" id="setCard">
+      <summary><div class="card-head"><h2 class="card-title">設定</h2><span class="card-note" id="setNote"></span></div></summary>
+      <label class="field"><span>いつもの出発地（区間の左側）</span><input type="text" id="sBase" maxlength="20" placeholder="例: 本社"></label>
+      <label class="field"><span>車両</span>
+        <div class="seg" id="sVehicle"><button data-v="car">自動車（1km 22円）</button><button data-v="bike">自動二輪車（1km 9円）</button></div>
+      </label>
+      <div class="row2">
+        <label class="field"><span>自動車の単価（円/km）</span><input type="number" id="sRateCar" inputmode="numeric" min="0" step="1"></label>
+        <label class="field"><span>自動二輪車の単価（円/km）</span><input type="number" id="sRateBike" inputmode="numeric" min="0" step="1"></label>
+      </div>
+      <p class="note">設定と記録は、このスマホの中だけに保存されます。</p>
+    </details>
+
+    <details class="card">
+      <summary><div class="card-head"><h2 class="card-title">機種変更・バックアップ</h2><span class="card-note" id="bkNote"></span></div></summary>
+      <p class="note" style="margin-top:0">全部の記録と設定を1つのファイルにまとめます。新しいスマホで「読み込む」を選ぶと元どおりになります。読み込んでも今の記録は消えず、足りない分だけ追加されます。</p>
+      <div class="btns">
+        <button class="btn" id="bkSave">ファイルに保存</button>
+        <button class="btn" id="bkLoad">引っ越しファイルを読み込む</button>
+      </div>
+      <input type="file" id="bkFile" accept=".txt,.json,text/plain,application/json" hidden>
+    </details>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var LS_TRIPS = "unten-nisshi-trips-v1";
+  var LS_SET = "unten-nisshi-settings-v1";
+  var LS_MONTH = "unten-nisshi-months-v1";
+  var ROAD_FACTOR = 1.3;          /* 直線距離から道のりを見積もる係数 */
+  var KINDS = { "駐": "一時駐車料", "道": "有料道路", "タ": "タクシー・運転代行" };
+
+  var trips = [], settings = {}, months = {};
+  var curMonth = "";
+  var editId = null;
+  var draft = { to: "", purpose: "", round: true, checked: false };
+  var geoMsg = "";
+  var busy = false;
+
+  /* ---------- 共通 ---------- */
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function dateKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function hm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function monthOf(date) { return date.slice(0, 7); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function newId() { return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function readLS(k, f) { try { var v = localStorage.getItem(k); return v == null ? f : JSON.parse(v); } catch (e) { return f; } }
+  function writeLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function saveTrips() { writeLS(LS_TRIPS, trips); }
+  function saveSettings() { writeLS(LS_SET, settings); }
+  function saveMonths() { writeLS(LS_MONTH, months); }
+  function yen(n) { return (Math.round(n) || 0).toLocaleString("ja-JP"); }
+  function monthLabel(key) { var p = key.split("-"); return +p[0] + "年" + (+p[1]) + "月分"; }
+  function shiftMonth(key, d) {
+    var p = key.split("-"), y = +p[0], m = +p[1] + d;
+    while (m < 1) { m += 12; y--; }
+    while (m > 12) { m -= 12; y++; }
+    return y + "-" + pad(m);
+  }
+  function rate() {
+    return settings.vehicle === "bike" ? (+settings.rateBike || 9) : (+settings.rateCar || 22);
+  }
+  function tripById(id) { return trips.filter(function (t) { return t.id === id; })[0] || null; }
+  function activeTrip() { return trips.filter(function (t) { return t.running; })[0] || null; }
+  function monthTrips(key) {
+    return trips.filter(function (t) { return monthOf(t.date) === key; }).sort(function (a, b) {
+      return a.date.localeCompare(b.date) || (a.start || "").localeCompare(b.start || "");
+    });
+  }
+  function recent(field) {
+    var seen = {}, out = [];
+    trips.slice().sort(function (a, b) { return (b.date + b.start).localeCompare(a.date + a.start); }).forEach(function (t) {
+      var v = (t[field] || "").trim();
+      if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    return out.slice(0, 6);
+  }
+  function recentCostPlaces() {
+    var seen = {}, out = [];
+    trips.slice().reverse().forEach(function (t) {
+      (t.costs || []).forEach(function (c) { var v = (c.place || "").trim(); if (v && !seen[v]) { seen[v] = 1; out.push(v); } });
+    });
+    return out.slice(0, 6);
+  }
+
+  /* ---------- 位置 ---------- */
+  function tryGeo(opts) {
+    return new Promise(function (resolve) {
+      if (!navigator.geolocation) return resolve(null);
+      var done = false;
+      var timer = setTimeout(function () { if (!done) { done = true; resolve(null); } }, (opts.timeout || 10000) + 1500);
+      navigator.geolocation.getCurrentPosition(function (p) {
+        if (done) return; done = true; clearTimeout(timer);
+        resolve({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy) });
+      }, function () { if (done) return; done = true; clearTimeout(timer); resolve(null); }, opts);
+    });
+  }
+  function getLocation() {
+    return tryGeo({ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }).then(function (r) {
+      return r || tryGeo({ enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+    });
+  }
+  function haversineKm(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  /* 出発→目的地→終了 の直線距離に係数を掛けて道のりを見積もる */
+  function estimateKm(t) {
+    var L = t.locs || {};
+    var pts = [L.start, L.dest, L.end].filter(Boolean);
+    if (pts.length < 2) return null;
+    var s = 0;
+    for (var i = 1; i < pts.length; i++) s += haversineKm(pts[i - 1], pts[i]);
+    if (t.round && L.start) {
+      var back = haversineKm(pts[pts.length - 1], L.start);
+      if (back > 0.5) s += back;          /* 行き先で終えた往復は、帰り道の分を足す */
+      else if (!L.dest) return null;      /* 出発地に戻って終えただけでは、どこまで行ったか分からない */
+    }
+    return Math.max(1, Math.round(s * ROAD_FACTOR));
+  }
+  /* 位置から区（例: 安佐南区）を調べる */
+  function wardName(loc) {
+    var url = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=ja&lat=" + loc.lat + "&lon=" + loc.lng;
+    return fetch(url, { headers: { "Accept": "application/json" } }).then(function (r) { return r.json(); }).then(function (j) {
+      var a = (j && j.address) || {};
+      var cands = [a.city_district, a.suburb, a.borough, a.quarter, a.town, a.village, a.city].filter(Boolean);
+      var ward = cands.filter(function (v) { return /区$/.test(v); })[0];
+      return ward || cands[0] || "";
+    })["catch"](function () { return ""; });
+  }
+
+  /* ---------- 打刻（出発・目的地・終了） ---------- */
+  function startTrip() {
+    if (busy || activeTrip()) return;
+    if (!draft.checked && !confirm("使用前の点検がまだです。点検せずに出発しますか？")) return;
+    busy = true;
+    var now = new Date();
+    var t = {
+      id: newId(), date: dateKey(now), start: hm(now), end: "", running: true,
+      checked: !!draft.checked, from: settings.base || "", to: draft.to.trim(), round: draft.round,
+      purpose: draft.purpose.trim(), km: null, kmAuto: true, social: false, costs: [], locs: {}
+    };
+    trips.push(t);
+    saveTrips();
+    draft = { to: "", purpose: "", round: true, checked: false };
+    geoMsg = "位置を確認しています…";
+    render();
+    getLocation().then(function (loc) {
+      busy = false;
+      if (loc) { t.locs.start = loc; geoMsg = "出発地の位置を記録しました"; } else { geoMsg = "位置を記録できませんでした（距離は手で入れてください）"; }
+      saveTrips(); render();
+    });
+  }
+  function markDest() {
+    var t = activeTrip(); if (!t || busy) return;
+    busy = true; geoMsg = "目的地の位置を確認しています…"; render();
+    getLocation().then(function (loc) {
+      if (!loc) { busy = false; geoMsg = "位置を記録できませんでした"; render(); return; }
+      t.locs.dest = loc;
+      saveTrips();
+      return wardName(loc).then(function (w) {
+        busy = false;
+        if (w && !t.to) t.to = w;
+        geoMsg = "目的地を記録しました" + (w ? "（" + w + "）" : "");
+        if (t.kmAuto) t.km = estimateKm(t);
+        saveTrips(); render();
+      });
+    });
+  }
+  function endTrip() {
+    var t = activeTrip(); if (!t || busy) return;
+    busy = true;
+    var now = new Date();
+    t.end = hm(now);
+    t.running = false;
+    geoMsg = "位置を確認しています…";
+    saveTrips(); render();
+    getLocation().then(function (loc) {
+      if (loc) t.locs.end = loc;
+      var fill = (!t.to && loc && t.locs.start && haversineKm(t.locs.start, loc) > 0.5) ? wardName(loc) : Promise.resolve("");
+      return fill.then(function (w) {
+        busy = false;
+        if (w && !t.to) t.to = w;
+        if (t.kmAuto) t.km = estimateKm(t);
+        geoMsg = t.km != null ? "距離を見積もりました。メーターと違えば直してください。" : "距離を見積もれませんでした。手で入れてください。";
+        saveTrips();
+        editId = t.id;   /* 終わったらすぐ確認できるように開く */
+        render();
+        try { $("editCard").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
+      });
+    });
+  }
+
+  /* ---------- 画面 ---------- */
+  function timeFieldHTML(cls, value) {
+    var p = (value || "").split(":");
+    return '<span class="tf"><input type="number" class="' + cls + '-h" min="0" max="23" inputmode="numeric" placeholder="--" value="' + (p[0] ? +p[0] : "") + '">' +
+      '<b>:</b><input type="number" class="' + cls + '-m" min="0" max="59" inputmode="numeric" placeholder="--" value="' + (p[1] || "") + '"></span>';
+  }
+  function readTimeField(scope, cls) {
+    var h = scope.querySelector("." + cls + "-h").value.trim(), m = scope.querySelector("." + cls + "-m").value.trim();
+    if (h === "" && m === "") return "";
+    h = Math.max(0, Math.min(23, parseInt(h, 10) || 0)); m = Math.max(0, Math.min(59, parseInt(m, 10) || 0));
+    return pad(h) + ":" + pad(m);
+  }
+  function chipsHTML(list, attr) {
+    return list.map(function (v) { return '<button class="chip" ' + attr + '="' + esc(v) + '">' + esc(v) + "</button>"; }).join("");
+  }
+  function bindChips(scope, attr, input) {
+    Array.prototype.forEach.call(scope.querySelectorAll("[" + attr + "]"), function (b) {
+      b.addEventListener("click", function (e) { e.preventDefault(); input.value = b.getAttribute(attr); input.dispatchEvent(new Event("input")); });
+    });
+  }
+
+  function renderNow() {
+    var box = $("nowCard");
+    var t = activeTrip();
+    if (!t) {
+      box.innerHTML =
+        '<div class="card-head"><h2 class="card-title">これから出発</h2><span class="card-note">' + esc(settings.base ? "出発地: " + settings.base : "出発地は設定で登録") + "</span></div>" +
+        '<label class="field"><span>行き先（区間の右側）</span><input type="text" id="dTo" maxlength="30" placeholder="空けておくと、着いた場所の区名が入ります" value="' + esc(draft.to) + '">' +
+        '<div class="chips" id="dToChips">' + chipsHTML(recent("to"), "data-to") + "</div></label>" +
+        '<label class="field"><span>業務用件</span><input type="text" id="dPurpose" maxlength="40" placeholder="例: ○○様 打合せ" value="' + esc(draft.purpose) + '">' +
+        '<div class="chips" id="dPurChips">' + chipsHTML(recent("purpose"), "data-pur") + "</div></label>" +
+        '<div class="field"><span style="display:block;font-size:12px;color:var(--ink-2);margin-bottom:4px">区間</span>' +
+        '<div class="seg" id="dRound"><button data-r="1">往復（⇔）</button><button data-r="0">片道（→）</button></div></div>' +
+        '<label class="check' + (draft.checked ? " on" : "") + '" id="dCheckWrap"><input type="checkbox" id="dCheck"' + (draft.checked ? " checked" : "") + '>' +
+        '<span>使用前の点検をした<br><small>使用する日ごとに、使う前に点検します</small></span></label>' +
+        '<button class="key" id="goBtn"><b>出発</b><span>時刻と位置を記録します</span></button>' +
+        (geoMsg ? '<p class="geo">' + esc(geoMsg) + "</p>" : "");
+      $("dTo").addEventListener("input", function () { draft.to = $("dTo").value; });
+      $("dPurpose").addEventListener("input", function () { draft.purpose = $("dPurpose").value; });
+      bindChips(box, "data-to", $("dTo"));
+      bindChips(box, "data-pur", $("dPurpose"));
+      Array.prototype.forEach.call(box.querySelectorAll("#dRound button"), function (b) {
+        b.setAttribute("aria-pressed", (b.getAttribute("data-r") === "1") === draft.round ? "true" : "false");
+        b.addEventListener("click", function () { draft.round = b.getAttribute("data-r") === "1"; renderNow(); });
+      });
+      $("dCheck").addEventListener("change", function () { draft.checked = $("dCheck").checked; $("dCheckWrap").classList.toggle("on", draft.checked); });
+      $("goBtn").addEventListener("click", startTrip);
+      return;
+    }
+    var mins = Math.max(0, Math.round((Date.now() - new Date(t.date + "T" + t.start + ":00").getTime()) / 60000));
+    box.innerHTML =
+      '<div class="card-head"><h2 class="card-title">使用中</h2><span class="card-note">' + (t.checked ? '<span class="tag ok">点検 済</span>' : '<span class="tag ng">点検 未</span>') + "</span></div>" +
+      '<div class="live"><div class="live-time mono">' + esc(t.start) + ' 〜</div>' +
+      '<div class="live-sub">出発から ' + Math.floor(mins / 60) + "時間" + (mins % 60) + "分 ・ " + esc(t.from || "出発地") + (t.round ? " ⇔ " : " → ") + esc(t.to || "行き先未定") + "</div></div>" +
+      '<label class="field"><span>行き先</span><input type="text" id="aTo" maxlength="30" value="' + esc(t.to) + '"></label>' +
+      '<label class="field"><span>業務用件</span><input type="text" id="aPurpose" maxlength="40" value="' + esc(t.purpose) + '">' +
+      '<div class="chips">' + chipsHTML(recent("purpose"), "data-pur") + "</div></label>" +
+      '<div class="btns" style="margin-top:0"><button class="btn" id="destBtn"' + (t.locs && t.locs.dest ? "" : "") + ">" + (t.locs && t.locs.dest ? "目的地の位置を記録し直す" : "目的地に着いた（位置を記録）") + "</button>" +
+      '<button class="btn" id="costBtn">駐車場・有料道路を追加</button></div>' +
+      (t.costs && t.costs.length ? '<p class="note">' + t.costs.map(function (c) { return esc(c.kind) + " " + esc(c.place || "") + " " + yen(c.amount) + "円"; }).join("<br>") + "</p>" : "") +
+      '<button class="key end" id="endBtn" style="margin-top:12px"><b>使用終了</b><span>終了時刻を記録して距離を見積もります</span></button>' +
+      (geoMsg ? '<p class="geo">' + esc(geoMsg) + "</p>" : "");
+    var sync = function () { t.to = $("aTo").value.trim(); t.purpose = $("aPurpose").value.trim(); saveTrips(); };
+    $("aTo").addEventListener("change", sync);
+    $("aPurpose").addEventListener("change", sync);
+    bindChips(box, "data-pur", $("aPurpose"));
+    $("aPurpose").addEventListener("input", sync);
+    $("destBtn").addEventListener("click", function () { sync(); markDest(); });
+    $("costBtn").addEventListener("click", function () {
+      sync();
+      editId = t.id;
+      t.costs.push({ id: newId(), kind: "駐", place: "", amount: null, social: false });
+      saveTrips(); render();
+      try { $("editCard").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
+    });
+    $("endBtn").addEventListener("click", function () { sync(); endTrip(); });
+  }
+
+  function tripLineHTML(t) {
+    var d = t.date.split("-");
+    var costs = (t.costs || []).map(function (c) {
+      return '<div class="trip-cost"><span class="tag">' + esc(c.kind) + "</span>" + esc(c.place || "（名称なし）") + " ・ " + yen(c.amount) + "円" + (c.social ? " ・ 交" : "") + "</div>";
+    }).join("");
+    return '<button class="trip' + (editId === t.id ? " open" : "") + '" data-id="' + t.id + '">' +
+      '<div class="trip-l1"><b>' + (+d[1]) + "/" + (+d[2]) + " " + esc(t.start || "--:--") + " 〜 " + esc(t.running ? "使用中" : (t.end || "--:--")) + "</b>" +
+      '<span class="trip-km mono">' + (t.km != null ? t.km + "km" : "—") + "</span></div>" +
+      '<div class="trip-l2">' + (t.checked ? '<span class="tag ok">済</span>' : '<span class="tag ng">点検未</span>') +
+      esc(t.from || "") + (t.round ? " ⇔ " : " → ") + esc(t.to || "") + (t.purpose ? " ・ " + esc(t.purpose) : "") + (t.social ? " ・ 交" : "") + "</div>" +
+      costs + "</button>";
+  }
+  function renderList() {
+    var list = monthTrips(curMonth);
+    $("listNote").textContent = list.length ? list.length + "件" : "";
+    $("list").innerHTML = list.length ? list.map(tripLineHTML).join("") : '<p class="empty">この月の記録はまだありません。</p>';
+    Array.prototype.forEach.call($("list").querySelectorAll(".trip"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-id");
+        editId = editId === id ? null : id;
+        render();
+        if (editId) { try { $("editCard").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {} }
+      });
+    });
+  }
+
+  function costRowHTML(c, i) {
+    return '<div class="cost-row" data-i="' + i + '">' +
+      '<div class="seg">' + Object.keys(KINDS).map(function (k) {
+        return '<button data-kind="' + k + '" aria-pressed="' + (c.kind === k ? "true" : "false") + '">' + k + "（" + KINDS[k].replace("・運転代行", "") + "）</button>";
+      }).join("") + "</div>" +
+      '<div class="row2"><label class="field" style="margin-bottom:6px"><span>場所・名称</span><input type="text" class="c-place" maxlength="40" value="' + esc(c.place) + '" placeholder="例: ○○パーク"></label>' +
+      '<label class="field" style="margin-bottom:6px"><span>金額（円）</span><input type="number" class="c-amount" inputmode="numeric" min="0" step="1" value="' + (c.amount == null ? "" : c.amount) + '"></label></div>' +
+      '<div class="chips">' + chipsHTML(recentCostPlaces(), "data-cp") + "</div>" +
+      '<div class="btns" style="margin-top:6px"><label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" class="c-social"' + (c.social ? " checked" : "") + ' style="width:20px;height:20px">交際費（交）</label>' +
+      '<button class="btn btn-danger c-del" style="margin-left:auto">この費用を消す</button></div></div>';
+  }
+  function renderEditor() {
+    var box = $("editCard");
+    var t = editId ? tripById(editId) : null;
+    if (!t) { box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    box.innerHTML =
+      '<div class="card-head"><h2 class="card-title">' + (t.running ? "使用中の記録" : "記録を直す") + '</h2><button class="btn" id="eClose">閉じる</button></div>' +
+      '<div class="row2"><label class="field"><span>日付</span><input type="date" id="eDate" value="' + esc(t.date) + '"></label>' +
+      '<label class="field"><span>距離（業務上走行距離 km）</span><input type="number" id="eKm" inputmode="numeric" min="0" step="1" value="' + (t.km == null ? "" : t.km) + '"></label></div>' +
+      '<div class="row2"><label class="field"><span>開始</span>' + timeFieldHTML("e-start", t.start) + "</label>" +
+      '<label class="field"><span>終了</span>' + timeFieldHTML("e-end", t.running ? "" : t.end) + "</label></div>" +
+      '<div class="row3"><label class="field"><span>出発地</span><input type="text" id="eFrom" maxlength="20" value="' + esc(t.from) + '"></label>' +
+      '<div class="field"><span>&nbsp;</span><div class="seg" id="eRound"><button data-r="1">⇔</button><button data-r="0">→</button></div></div>' +
+      '<label class="field"><span>行き先</span><input type="text" id="eTo" maxlength="30" value="' + esc(t.to) + '"></label></div>' +
+      '<label class="field"><span>業務用件</span><input type="text" id="ePurpose" maxlength="40" value="' + esc(t.purpose) + '"></label>' +
+      '<label class="check' + (t.checked ? " on" : "") + '"><input type="checkbox" id="eChecked"' + (t.checked ? " checked" : "") + "><span>使用前点検 済</span></label>" +
+      '<label class="check' + (t.social ? " on" : "") + '"><input type="checkbox" id="eSocial"' + (t.social ? " checked" : "") + "><span>この走行は交際費（接待）<br><small>交際費として計上が必要な場合</small></span></label>" +
+      (t.locs && (t.locs.start || t.locs.end) ? '<p class="note" style="margin-top:0">' + (estimateKm(t) != null ? "位置からの見積もり: 約" + estimateKm(t) + "km" : "位置からは距離を見積もれませんでした") + "</p>" : "") +
+      '<div class="card-title" style="margin:10px 0 8px">駐車場・有料道路・タクシー</div>' +
+      '<div id="eCosts">' + (t.costs || []).map(costRowHTML).join("") + "</div>" +
+      '<div class="btns" style="margin-top:0"><button class="btn" id="eAddCost">費用を追加</button></div>' +
+      '<div class="btns"><button class="btn btn-primary" id="eSave">保存</button>' +
+      '<button class="btn btn-danger" id="eDel" data-armed="0">この記録を消す</button></div>' +
+      '<p class="warn" id="eWarn" hidden></p>';
+
+    Array.prototype.forEach.call(box.querySelectorAll("#eRound button"), function (b) {
+      b.setAttribute("aria-pressed", (b.getAttribute("data-r") === "1") === !!t.round ? "true" : "false");
+      b.addEventListener("click", function () {
+        Array.prototype.forEach.call(box.querySelectorAll("#eRound button"), function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+      });
+    });
+    Array.prototype.forEach.call(box.querySelectorAll(".cost-row"), function (row) {
+      Array.prototype.forEach.call(row.querySelectorAll("[data-kind]"), function (b) {
+        b.addEventListener("click", function () {
+          Array.prototype.forEach.call(row.querySelectorAll("[data-kind]"), function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+        });
+      });
+      bindChips(row, "data-cp", row.querySelector(".c-place"));
+      row.querySelector(".c-del").addEventListener("click", function () {
+        collect(false);
+        t.costs.splice(+row.getAttribute("data-i"), 1);
+        saveTrips(); render();
+      });
+    });
+    /* 画面の入力を記録に書き戻す */
+    var collect = function (strict) {
+      var date = $("eDate").value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { if (strict) { showWarn("日付を入れてください。"); return false; } date = t.date; }
+      var start = readTimeField(box, "e-start"), end = readTimeField(box, "e-end");
+      if (strict && !start) { showWarn("開始の時刻を入れてください。"); return false; }
+      if (strict && end && start && end < start) { showWarn("終了が開始より前になっています。"); return false; }
+      var kmv = $("eKm").value.trim();
+      var km = kmv === "" ? null : Math.max(0, Math.round(+kmv));
+      if (km !== t.km) t.kmAuto = false;
+      t.date = date; t.start = start || t.start; t.km = km;
+      if (!t.running) t.end = end;
+      t.from = $("eFrom").value.trim(); t.to = $("eTo").value.trim(); t.purpose = $("ePurpose").value.trim();
+      t.round = box.querySelector('#eRound [aria-pressed="true"]').getAttribute("data-r") === "1";
+      t.checked = $("eChecked").checked; t.social = $("eSocial").checked;
+      t.costs = Array.prototype.map.call(box.querySelectorAll(".cost-row"), function (row, i) {
+        var old = t.costs[i] || { id: newId() };
+        var a = row.querySelector(".c-amount").value.trim();
+        return {
+          id: old.id, kind: row.querySelector('[data-kind][aria-pressed="true"]').getAttribute("data-kind"),
+          place: row.querySelector(".c-place").value.trim(), amount: a === "" ? null : Math.max(0, Math.round(+a)),
+          social: row.querySelector(".c-social").checked
+        };
+      });
+      return true;
+    };
+    var showWarn = function (m) { $("eWarn").textContent = m; $("eWarn").hidden = false; };
+    $("eClose").addEventListener("click", function () { editId = null; render(); });
+    $("eAddCost").addEventListener("click", function () {
+      collect(false);
+      t.costs.push({ id: newId(), kind: "駐", place: "", amount: null, social: false });
+      saveTrips(); render();
+    });
+    $("eSave").addEventListener("click", function () {
+      if (!collect(true)) return;
+      saveTrips();
+      editId = null;
+      curMonth = monthOf(t.date);
+      render();
+    });
+    $("eDel").addEventListener("click", function () {
+      var b = $("eDel");
+      if (b.getAttribute("data-armed") !== "1") {
+        b.setAttribute("data-armed", "1"); b.textContent = "もう一度押すと消えます";
+        setTimeout(function () { if ($("eDel")) { $("eDel").setAttribute("data-armed", "0"); $("eDel").textContent = "この記録を消す"; } }, 3000);
+        return;
+      }
+      trips = trips.filter(function (x) { return x.id !== t.id; });
+      saveTrips(); editId = null; render();
+    });
+  }
+
+  function totals(key) {
+    var list = monthTrips(key);
+    var km = 0, kmSocial = 0, cost = 0, costSocial = 0;
+    list.forEach(function (t) {
+      if (t.km != null) { km += t.km; if (t.social) kmSocial += t.km; }
+      (t.costs || []).forEach(function (c) { if (c.amount != null) { cost += c.amount; if (c.social) costSocial += c.amount; } });
+    });
+    var r = rate();
+    return { km: km, kmSocial: kmSocial, cost: cost, costSocial: costSocial, rate: r, dist: km * r, distSocial: kmSocial * r, sub: cost + km * r, count: list.length };
+  }
+  function renderSum() {
+    var s = totals(curMonth);
+    $("sum").innerHTML =
+      '<div class="sum-line"><span>② 業務上走行距離</span><b>' + s.km + " km</b></div>" +
+      '<div class="sum-line"><span>③ 1kmにつき</span><b>' + s.rate + " 円</b></div>" +
+      '<div class="sum-line"><span>④ 距離比例費（②×③）</span><b>' + yen(s.dist) + " 円</b></div>" +
+      '<div class="sum-line"><span>① 交通費合計額</span><b>' + yen(s.cost) + " 円</b></div>" +
+      (s.kmSocial || s.costSocial ? '<div class="sum-line"><span>うち交際費</span><b>' + s.kmSocial + "km ・ " + yen(s.costSocial + s.distSocial) + "円</b></div>" : "") +
+      '<div class="sum-line sum-total"><span>①＋④（小計）</span><b>' + yen(s.sub) + " 円</b></div>";
+    var m = months[curMonth] || {};
+    if (document.activeElement !== $("odoA")) $("odoA").value = m.odoA == null ? "" : m.odoA;
+    if (document.activeElement !== $("odoB")) $("odoB").value = m.odoB == null ? "" : m.odoB;
+    $("sumNote").textContent = monthLabel(curMonth);
+  }
+
+  function renderSettings() {
+    if (document.activeElement !== $("sBase")) $("sBase").value = settings.base || "";
+    if (document.activeElement !== $("sRateCar")) $("sRateCar").value = settings.rateCar || 22;
+    if (document.activeElement !== $("sRateBike")) $("sRateBike").value = settings.rateBike || 9;
+    Array.prototype.forEach.call($("sVehicle").querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", (settings.vehicle || "car") === b.getAttribute("data-v") ? "true" : "false");
+    });
+    $("setNote").textContent = (settings.base ? "出発地 " + settings.base : "出発地 未設定") + " ・ " + rate() + "円/km";
+  }
+
+  function render() {
+    $("mLabel").textContent = monthLabel(curMonth);
+    renderNow();
+    renderEditor();
+    renderList();
+    renderSum();
+    renderSettings();
+  }
+
+  /* ---------- 設定・月の入力 ---------- */
+  (function bindSettings() {
+    $("sBase").addEventListener("change", function () { settings.base = $("sBase").value.trim(); saveSettings(); render(); });
+    ["sRateCar", "sRateBike"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        var v = parseInt($(id).value, 10);
+        settings[id === "sRateCar" ? "rateCar" : "rateBike"] = isNaN(v) ? null : v;
+        saveSettings(); render();
+      });
+    });
+    Array.prototype.forEach.call($("sVehicle").querySelectorAll("button"), function (b) {
+      b.addEventListener("click", function () { settings.vehicle = b.getAttribute("data-v"); saveSettings(); render(); });
+    });
+    ["odoA", "odoB"].forEach(function (id) {
+      $(id).addEventListener("change", function () {
+        var v = parseInt($(id).value, 10);
+        months[curMonth] = months[curMonth] || {};
+        months[curMonth][id] = isNaN(v) ? null : v;
+        saveMonths(); renderSum();
+      });
+    });
+    $("mPrev").addEventListener("click", function () { curMonth = shiftMonth(curMonth, -1); editId = null; render(); });
+    $("mNext").addEventListener("click", function () { curMonth = shiftMonth(curMonth, 1); editId = null; render(); });
+    $("addManual").addEventListener("click", function () {
+      var today = dateKey(new Date());
+      var date = monthOf(today) === curMonth ? today : curMonth + "-01";
+      var t = { id: newId(), date: date, start: "", end: "", running: false, checked: true, from: settings.base || "", to: "", round: true,
+        purpose: "", km: null, kmAuto: false, social: false, costs: [], locs: {}, manual: true };
+      trips.push(t); saveTrips(); editId = t.id; render();
+      try { $("editCard").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
+    });
+  })();
+
+  /* ================= Excel（様式どおりの見た目） =================
+     方眼（細い列42本）に枠と文字を置いて様式を再現する。 */
+  var NCOL = 42;
+  var FONT_G = "ＭＳ Ｐゴシック", FONT_M = "ＭＳ Ｐ明朝";
+  function colName(n) { var s = ""; while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
+  function ref(r, c) { return colName(c + 1) + r; }
+  function xmlEsc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]; }); }
+
+  function Sheet() { this.cells = {}; this.merges = []; this.rowH = {}; this.maxRow = 1; this.validations = []; }
+  /* 1マスに値とスタイルを置く（枠は box で付ける） */
+  Sheet.prototype.put = function (r, c, v, st) {
+    var k = r + ":" + c;
+    var cur = this.cells[k] || { r: r, c: c, st: {} };
+    if (v !== undefined) cur.v = v;
+    if (st) cur.st = mergeStyle(cur.st, st);
+    this.cells[k] = cur;
+    if (r > this.maxRow) this.maxRow = r;
+  };
+  /* 範囲をまとめ、外周に枠を付け、左上に値を置く。c2 は含まない（右端の次の列）。 */
+  Sheet.prototype.box = function (r1, c1, r2, c2, v, st, border) {
+    st = st || {};
+    border = border || {};
+    /* 個別の指定（null を含む）があればそれを、なければ all を使う */
+    var pick = function (k) { return (k in border) ? border[k] : border.all; };
+    var bl = pick("left"), br = pick("right"), bt = pick("top"), bb = pick("bottom");
+    for (var r = r1; r <= r2; r++) {
+      for (var c = c1; c < c2; c++) {
+        var b = {};
+        if (c === c1 && bl) b.left = bl;
+        if (c === c2 - 1 && br) b.right = br;
+        if (r === r1 && bt) b.top = bt;
+        if (r === r2 && bb) b.bottom = bb;
+        var s2 = mergeStyle(st, Object.keys(b).length ? { border: b } : {});
+        this.put(r, c, (r === r1 && c === c1) ? v : undefined, s2);
+      }
+    }
+    if (r2 > r1 || c2 - 1 > c1) this.merges.push(ref(r1, c1) + ":" + ref(r2, c2 - 1));
+  };
+  function mergeStyle(a, b) {
+    var o = {};
+    Object.keys(a || {}).forEach(function (k) { o[k] = a[k]; });
+    Object.keys(b || {}).forEach(function (k) {
+      if (k === "border") { o.border = Object.assign({}, a && a.border, b.border); }
+      else o[k] = b[k];
+    });
+    return o;
+  }
+
+  /* スタイル表（同じ組み合わせは1つにまとめる） */
+  function StyleBook() {
+    this.fonts = []; this.fills = []; this.borders = []; this.xfs = []; this.numFmts = [];
+    this.fontKey = {}; this.fillKey = {}; this.borderKey = {}; this.xfKey = {}; this.fmtKey = {};
+    this.font({}); this.fillIndex(null); this.fillIndex("gray125"); this.borderIndex({}); this.xf({});
+  }
+  StyleBook.prototype.font = function (f) {
+    var k = JSON.stringify([f.name || FONT_G, f.sz || 9, !!f.b, f.color || "", f.u || ""]);
+    if (this.fontKey[k] == null) { this.fontKey[k] = this.fonts.length; this.fonts.push(JSON.parse(k)); }
+    return this.fontKey[k];
+  };
+  StyleBook.prototype.fillIndex = function (rgb) {
+    var k = rgb || "none";
+    if (this.fillKey[k] == null) { this.fillKey[k] = this.fills.length; this.fills.push(k); }
+    return this.fillKey[k];
+  };
+  StyleBook.prototype.borderIndex = function (b) {
+    var k = JSON.stringify([b.left || "", b.right || "", b.top || "", b.bottom || ""]);
+    if (this.borderKey[k] == null) { this.borderKey[k] = this.borders.length; this.borders.push(JSON.parse(k)); }
+    return this.borderKey[k];
+  };
+  StyleBook.prototype.fmt = function (code) {
+    if (!code) return 0;
+    if (code === "#,##0") return 3;
+    if (this.fmtKey[code] == null) { this.fmtKey[code] = 164 + this.numFmts.length; this.numFmts.push(code); }
+    return this.fmtKey[code];
+  };
+  StyleBook.prototype.xf = function (st) {
+    var fontId = this.font(st.font || {});
+    var fillId = st.fill ? this.fillIndex(st.fill) : 0;
+    var borderId = this.borderIndex(st.border || {});
+    var numFmtId = this.fmt(st.fmt);
+    var al = st.align || {};
+    var k = JSON.stringify([fontId, fillId, borderId, numFmtId, al.h || "", al.v || "center", !!al.wrap, al.rot || 0, !!al.shrink, al.indent || 0]);
+    if (this.xfKey[k] == null) { this.xfKey[k] = this.xfs.length; this.xfs.push(JSON.parse(k)); }
+    return this.xfKey[k];
+  };
+  StyleBook.prototype.xml = function () {
+    var self = this;
+    var fontXml = function (f) {
+      return "<font>" + (f[2] ? "<b/>" : "") + (f[4] ? '<u val="' + f[4] + '"/>' : "") + '<sz val="' + f[1] + '"/>' +
+        (f[3] ? '<color rgb="FF' + f[3] + '"/>' : "") + '<name val="' + xmlEsc(f[0]) + '"/><charset val="128"/></font>';
+    };
+    var side = function (tag, s) { return s ? "<" + tag + ' style="' + s + '"><color rgb="FF000000"/></' + tag + ">" : "<" + tag + "/>"; };
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      (this.numFmts.length ? '<numFmts count="' + this.numFmts.length + '">' + this.numFmts.map(function (c, i) {
+        return '<numFmt numFmtId="' + (164 + i) + '" formatCode="' + xmlEsc(c) + '"/>';
+      }).join("") + "</numFmts>" : "") +
+      '<fonts count="' + this.fonts.length + '">' + this.fonts.map(fontXml).join("") + "</fonts>" +
+      '<fills count="' + this.fills.length + '">' + this.fills.map(function (f) {
+        if (f === "none" || f === "gray125") return '<fill><patternFill patternType="' + f + '"/></fill>';
+        return '<fill><patternFill patternType="solid"><fgColor rgb="FF' + f + '"/><bgColor indexed="64"/></patternFill></fill>';
+      }).join("") + "</fills>" +
+      '<borders count="' + this.borders.length + '">' + this.borders.map(function (b) {
+        return "<border>" + side("left", b[0]) + side("right", b[1]) + side("top", b[2]) + side("bottom", b[3]) + "<diagonal/></border>";
+      }).join("") + "</borders>" +
+      '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+      '<cellXfs count="' + this.xfs.length + '">' + this.xfs.map(function (x) {
+        var al = '<alignment vertical="' + x[5] + '"' + (x[4] ? ' horizontal="' + x[4] + '"' : "") + (x[6] ? ' wrapText="1"' : "") +
+          (x[7] ? ' textRotation="' + x[7] + '"' : "") + (x[8] ? ' shrinkToFit="1"' : "") + (x[9] ? ' indent="' + x[9] + '"' : "") + "/>";
+        return '<xf numFmtId="' + x[3] + '" fontId="' + x[0] + '" fillId="' + x[1] + '" borderId="' + x[2] + '" xfId="0"' +
+          (x[3] ? ' applyNumberFormat="1"' : "") + ' applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + al + "</xf>";
+      }).join("") + "</cellXfs>" +
+      '<cellStyles count="1"><cellStyle name="標準" xfId="0" builtinId="0"/></cellStyles>' +
+      "</styleSheet>";
+  };
+
+  function cellXml(cell, book) {
+    var s = book.xf(cell.st || {});
+    var r = ref(cell.r, cell.c);
+    var v = cell.v;
+    if (v == null || v === "") return '<c r="' + r + '" s="' + s + '"/>';
+    if (typeof v === "number") return '<c r="' + r + '" s="' + s + '"><v>' + v + "</v></c>";
+    if (typeof v === "object" && v.f) {
+      return '<c r="' + r + '" s="' + s + '"><f>' + xmlEsc(v.f) + "</f>" + (v.v != null ? "<v>" + v.v + "</v>" : "") + "</c>";
+    }
+    if (Array.isArray(v)) {
+      return '<c r="' + r + '" s="' + s + '" t="inlineStr"><is>' + v.map(function (run) {
+        var f = run.font || {};
+        return "<r><rPr>" + (f.b ? "<b/>" : "") + (f.u ? '<u val="' + f.u + '"/>' : "") + '<sz val="' + (f.sz || 9) + '"/>' +
+          (f.color ? '<color rgb="FF' + f.color + '"/>' : "") + '<rFont val="' + xmlEsc(f.name || FONT_G) + '"/><charset val="128"/></rPr>' +
+          '<t xml:space="preserve">' + xmlEsc(run.t) + "</t></r>";
+      }).join("") + "</is></c>";
+    }
+    return '<c r="' + r + '" s="' + s + '" t="inlineStr"><is><t xml:space="preserve">' + xmlEsc(v) + "</t></is></c>";
+  }
+
+  /* 様式を組み立てる */
+  function buildForm(key) {
+    var list = monthTrips(key).filter(function (t) { return !t.running; });
+    var S = new Sheet();
+    var m = months[key] || {};
+    var fd = ($("fillDate").value || dateKey(new Date())).split("-");
+    var G = function (sz, b, extra) { return Object.assign({ font: { name: FONT_G, sz: sz || 9, b: !!b } }, extra || {}); };
+    var M = function (sz, extra) { return Object.assign({ font: { name: FONT_M, sz: sz || 9.5 } }, extra || {}); };
+    var C = { h: "center" }, R = { h: "right" };
+    var YEL = "FFFF99";
+    var T = "thin", MD = "medium", DS = "dashed";
+
+    /* 1行目: 題名と記入日 */
+    var r = 1;
+    S.rowH[r] = 27;
+    S.box(r, 0, r, 27, "運転日誌(私有自動車用) 兼 社用交通費明細書", G(15, true, { align: { h: "left", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 27, r, 30, "記入日", G(9, false, { align: { h: "right", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 30, r, 33, +fd[0], G(11, true, { fill: YEL, align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 33, r, 34, "年", G(9, false, { align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 34, r, 36, +fd[1], G(11, true, { fill: YEL, align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 36, r, 37, "月", G(9, false, { align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 37, r, 39, +fd[2], G(11, true, { fill: YEL, align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 39, r, 40, "日", G(9, false, { align: { h: "center", v: "bottom" } }), { bottom: "thick" });
+    S.box(r, 40, r, NCOL, "", G(9), { bottom: "thick" });
+    r = 2; S.rowH[r] = 8;
+
+    /* 見出し */
+    r = 3; S.rowH[r] = 24;
+    var H = function (c1, c2, v, bd) { S.box(r, c1, r, c2, v, G(9, false, { align: { h: "center", v: "center", wrap: true } }), bd); };
+    H(0, 7, "日　　時", { all: T, left: MD, top: MD });
+    H(7, 9, "点検", { all: T, top: MD });
+    H(9, 17, "区　　　　間", { all: T, top: MD });
+    H(17, 26, "業務用件", { all: T, top: MD });
+    H(26, 31, "交通機関", { all: T, top: MD });
+    H(31, 35, "交通費[円]", { all: T, top: MD });
+    H(35, NCOL, "領収証", { all: T, top: MD, right: MD });
+
+    /* 明細の行：走行1件につき1行、費用は1件ごとに下の行 */
+    var rows = [];
+    list.forEach(function (t) {
+      rows.push({ kind: "trip", t: t });
+      (t.costs || []).forEach(function (c) { rows.push({ kind: "cost", t: t, c: c }); });
+    });
+    var DETAIL = Math.max(25, rows.length);
+    var first = 4, last = first + DETAIL - 1;
+    var prevMonth = "";
+    for (var i = 0; i < DETAIL; i++) {
+      r = first + i;
+      S.rowH[r] = 17.5;
+      var row = rows[i];
+      var isLast = i === DETAIL - 1;
+      var bd = function (extra) { return Object.assign({ all: T }, extra || {}); };
+      var dateTxt = "/", timeTxt = "～", chk = "", from = "", arrow = "→", to = "", use = "", km = null, cost = null, soc = "", rec = null;
+      var clock = function (v) { return (v || "").replace(/^0(\d)/, "$1"); };
+      if (row) {
+        var t = row.t, d = t.date.split("-");
+        if (row.kind === "trip") {
+          dateTxt = (prevMonth !== d[1] ? (+d[1]) + " " : "") + "/ " + (+d[2]);
+          prevMonth = d[1];
+          timeTxt = clock(t.start) + " ～ " + clock(t.end);
+          chk = t.checked ? "済" : "";
+          from = t.from || ""; arrow = t.round ? "⇔" : "→"; to = t.to || ""; use = t.purpose || "";
+          km = t.km; soc = t.social ? "交" : "";
+        } else {
+          arrow = "→"; use = row.c.place || ""; cost = row.c.amount; soc = row.c.social ? "交" : ""; rec = row.c.kind;
+        }
+      }
+      var bottom = isLast ? { bottom: MD } : {};
+      S.box(r, 0, r, 3, dateTxt, M(9.5, { align: { h: "right" } }), bd(Object.assign({ left: MD, right: null }, bottom)));
+      S.box(r, 3, r, 7, timeTxt, M(9.5, { align: { h: "center", shrink: true } }), bd(Object.assign({ left: null }, bottom)));
+      S.box(r, 7, r, 9, chk, M(9.5, { align: C }), bd(bottom));
+      S.box(r, 9, r, 12, from, M(9.5, { align: { h: "center", shrink: true } }), bd(Object.assign({ right: null }, bottom)));
+      S.box(r, 12, r, 14, arrow, M(9.5, { align: C }), bd(Object.assign({ left: null, right: null }, bottom)));
+      S.box(r, 14, r, 17, to, M(to.length > 6 ? 7 : 9.5, { align: { h: "center", wrap: to.length > 6, shrink: to.length <= 6 } }), bd(Object.assign({ left: null }, bottom)));
+      S.box(r, 17, r, 26, use, M(9.5, { align: { h: "left", indent: 1, shrink: true } }), bd(bottom));
+      S.box(r, 26, r, 31, km == null ? "" : km, M(9.5, { align: C, fmt: '#,##0"km"' }), bd(bottom));
+      S.box(r, 31, r, 34, cost == null ? "" : cost, M(9.5, { align: { h: "right" }, fmt: "#,##0" }), bd(Object.assign({ right: DS }, bottom)));
+      S.box(r, 34, r, 35, soc, G(8, false, { align: C }), bd(Object.assign({ left: DS }, bottom)));
+      /* 領収証：タ・道・駐。使った種類を赤の太字で示す（様式では○で囲む） */
+      var runs = ["タ", "・", "道", "・", "駐"].map(function (ch) {
+        var on = rec && ch === rec;
+        return { t: on ? "(" + ch + ")" : ch, font: { name: FONT_G, sz: 9, b: true, color: on ? "C00000" : "" } };
+      });
+      S.box(r, 35, r, NCOL, runs, G(9, true, { align: C }), bd(Object.assign({ right: MD }, bottom)));
+    }
+    S.validations.push(ref(first, 34) + ":" + ref(last, 34));
+
+    var s = totals(key);
+    var rateV = s.rate;
+    var kmRange = ref(first, 26) + ":" + ref(last, 26);
+    var costRange = ref(first, 31) + ":" + ref(last, 31);
+    var socRange = ref(first, 34) + ":" + ref(last, 34);
+
+    /* 私有自動車走行距離（メーター）と ①交通費合計額 */
+    var f1 = last + 1;
+    for (r = f1; r <= f1 + 2; r++) S.rowH[r] = 17.5;
+    S.box(f1, 0, f1 + 2, 8, "私有自動車走行距離\n(メーター累計を転記)", G(8.5, false, { align: { h: "center", wrap: true } }), { all: T, left: MD, bottom: MD });
+    var odoRow = function (rr, label, val, fill) {
+      S.box(rr, 8, rr, 13, label, G(8.5, false, { align: C }), { all: T, bottom: rr === f1 + 2 ? MD : T });
+      S.box(rr, 13, rr, 17, val, G(9, false, { align: R, fill: fill, fmt: "#,##0" }), { top: T, bottom: rr === f1 + 2 ? MD : T });
+      S.box(rr, 17, rr, 18, "km", G(8.5, false, { align: C }), { top: T, bottom: rr === f1 + 2 ? MD : T, right: T });
+    };
+    odoRow(f1, "使用開始(a)", m.odoA == null ? "" : m.odoA, YEL);
+    odoRow(f1 + 1, "使用終了(b)", m.odoB == null ? "" : m.odoB, YEL);
+    var aRef = ref(f1, 13), bRef = ref(f1 + 1, 13);
+    odoRow(f1 + 2, "(b)－(a)", { f: "IF(AND(" + aRef + "<>\"\"," + bRef + "<>\"\")," + bRef + "-" + aRef + ",\"\")", v: (m.odoA != null && m.odoB != null) ? m.odoB - m.odoA : null }, null);
+    S.box(f1, 18, f1 + 2, 26, "合計", G(9, false, { align: C }), { all: T, bottom: MD });
+    /* ① */
+    var sumRef = ref(f1, 33);
+    S.box(f1, 26, f1, 33, "① 交通費合計額", G(9, false, { align: { h: "left", indent: 1 } }), { top: T, left: T });
+    S.box(f1, 33, f1, 39, { f: "SUM(" + costRange + ")", v: s.cost }, G(10.5, false, { align: R, fmt: "#,##0" }), { top: T, bottom: T });
+    S.box(f1, 39, f1, NCOL, "円", G(9, false, { align: C }), { top: T, right: MD });
+    S.box(f1 + 1, 26, f1 + 1, 33, "（うち交際費", G(9, false, { align: { h: "left", indent: 1 } }), { left: T });
+    S.box(f1 + 1, 33, f1 + 1, 39, { f: "SUMIF(" + socRange + ",\"交\"," + costRange + ")", v: s.costSocial }, G(10.5, false, { align: R, fmt: "#,##0" }), { bottom: T });
+    S.box(f1 + 1, 39, f1 + 1, NCOL, "円）", G(9, false, { align: C }), { right: MD });
+    S.box(f1 + 2, 26, f1 + 2, NCOL, "", G(9), { left: T, right: MD, bottom: MD });
+
+    /* 私有自動車関係経費 と 支払合計 */
+    var f2 = f1 + 3;
+    for (r = f2; r <= f2 + 4; r++) S.rowH[r] = 19;
+    S.box(f2, 0, f2 + 4, 2, "関係経費", G(9, false, { align: { h: "center", v: "center", rot: 255 } }), { left: MD, top: MD, bottom: MD });
+    S.box(f2, 2, f2 + 4, 4, "私有自動車", G(9, false, { align: { h: "center", v: "center", rot: 255 } }), { top: MD, bottom: MD, right: T });
+    var kmRef = ref(f2, 13), rateRef = ref(f2 + 2, 9), distRef = ref(f2 + 3, 13);
+    /* ② */
+    S.put(f2, 4, "②", G(9, false, { align: C, border: { top: MD } }));
+    S.box(f2, 5, f2, 13, "業務上走行距離", G(9, false, { align: { h: "left", indent: 1 } }), { top: MD });
+    S.box(f2, 13, f2, 17, { f: "SUM(" + kmRange + ")", v: s.km }, G(10.5, false, { align: R, fmt: "#,##0" }), { top: MD, bottom: T });
+    S.box(f2, 17, f2, 19, "km", G(9, false, { align: C }), { top: MD });
+    S.box(f2, 19, f2, 23, "（うち交際費", G(9, false, { align: R }), { top: MD });
+    S.box(f2, 23, f2, 26, { f: "SUMIF(" + socRange + ",\"交\"," + kmRange + ")", v: s.kmSocial }, G(10.5, false, { align: R, fmt: "#,##0" }), { top: MD, bottom: T });
+    S.box(f2, 26, f2, 29, "km ）", G(9, false, { align: { h: "left" } }), { top: MD });
+    S.box(f2 + 1, 5, f2 + 1, 29, "(「交通機関」欄に記載の業務上走行距離の合計)", G(9, false, { align: { h: "left", indent: 1 } }), {});
+    /* ③ */
+    S.put(f2 + 2, 4, "③", G(9, false, { align: C }));
+    S.box(f2 + 2, 5, f2 + 2, 9, "1kmにつき", G(9, false, { align: { h: "left", indent: 1 } }), {});
+    S.box(f2 + 2, 9, f2 + 2, 11, rateV, G(9.5, false, { align: C }), {});
+    S.put(f2 + 2, 11, "円", G(9, false, { align: { h: "left" }, font: { name: FONT_G, sz: 9, u: "single" } }));
+    S.box(f2 + 2, 12, f2 + 2, 17, "（自動二輪車は", G(9, false, { align: { h: "left" } }), {});
+    S.box(f2 + 2, 17, f2 + 2, 19, [{ t: (+settings.rateBike || 9) + "円", font: { name: FONT_G, sz: 9, u: "single" } }], G(9, false, { align: C }), {});
+    S.put(f2 + 2, 19, "）", G(9, false, { align: { h: "left" } }));
+    /* ④ */
+    S.put(f2 + 3, 4, "④", G(9, false, { align: C }));
+    S.box(f2 + 3, 5, f2 + 3, 13, "距離比例費", G(9, false, { align: { h: "left", indent: 1 } }), {});
+    S.box(f2 + 3, 13, f2 + 3, 17, { f: kmRef + "*" + rateRef, v: s.dist }, G(10.5, false, { align: R, fmt: "#,##0" }), { bottom: T });
+    S.box(f2 + 3, 17, f2 + 3, 19, "円", G(9, false, { align: C }), {});
+    S.box(f2 + 3, 19, f2 + 3, 23, "（うち交際費", G(9, false, { align: R }), {});
+    S.box(f2 + 3, 23, f2 + 3, 26, { f: ref(f2, 23) + "*" + rateRef, v: s.distSocial }, G(10.5, false, { align: R, fmt: "#,##0" }), { bottom: T });
+    S.box(f2 + 3, 26, f2 + 3, 29, "円）(②×③)", G(8.5, false, { align: { h: "left", shrink: true } }), {});
+    S.box(f2 + 4, 4, f2 + 4, 29, "", G(9), { bottom: MD });
+    /* 支払合計 */
+    S.box(f2, 29, f2 + 4, 30, "支払合計", G(9, false, { align: { h: "center", v: "center", rot: 255 } }), { top: MD, bottom: MD, left: T, right: T });
+    S.box(f2, 30, f2, 34, "①＋④", G(9, false, { align: { h: "left", indent: 1 } }), { top: MD });
+    S.box(f2, 34, f2, 37, "（小計）", G(8.5, false, { align: C }), { top: MD });
+    S.box(f2, 37, f2, NCOL, { f: sumRef + "+" + distRef, v: s.sub }, G(9, true, { align: R, fmt: '#,##0"円"' }), { top: MD, right: MD });
+    /* 支払合計の記入欄（経理が書く欄なので空けておく） */
+    var payLine = function (rr, label, close) {
+      var lastLine = rr === f2 + 4;
+      S.box(rr, 30, rr, 35, label, G(9, false, { align: { h: "left", indent: label ? 1 : 0 } }), lastLine ? { bottom: MD } : {});
+      S.box(rr, 35, rr, 40, "", G(9, false, { align: R }), { bottom: T });
+      S.box(rr, 40, rr, NCOL, close, G(9, false, { align: { h: "left" } }), lastLine ? { right: MD, bottom: MD } : { right: MD });
+    };
+    payLine(f2 + 1, "", "円");
+    payLine(f2 + 2, "（うち交際費", "円）");
+    payLine(f2 + 3, "（税抜", "円）");
+    payLine(f2 + 4, "（消費税", "円）");
+    /* 所属・氏名などの欄は会社の様式に手で書き写すので、ここでは作らない */
+    return S;
+  }
+
+  function sheetXmlOf(S, book) {
+    var rows = {};
+    Object.keys(S.cells).forEach(function (k) { var c = S.cells[k]; (rows[c.r] = rows[c.r] || []).push(c); });
+    var maxR = S.maxRow;
+    var body = "";
+    for (var r = 1; r <= maxR; r++) {
+      var cs = (rows[r] || []).sort(function (a, b) { return a.c - b.c; });
+      var h = S.rowH[r];
+      body += '<row r="' + r + '"' + (h ? ' ht="' + h + '" customHeight="1"' : "") + ">" + cs.map(function (c) { return cellXml(c, book); }).join("") + "</row>";
+    }
+    var cols = "";
+    for (var c = 0; c < NCOL; c++) cols += '<col min="' + (c + 1) + '" max="' + (c + 1) + '" width="2.63" customWidth="1"/>';
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' +
+      '<dimension ref="A1:' + ref(maxR, NCOL - 1) + '"/>' +
+      '<sheetViews><sheetView workbookViewId="0" showGridLines="0" zoomScale="100" view="pageLayout"/></sheetViews>' +
+      '<sheetFormatPr defaultRowHeight="13.5"/>' +
+      "<cols>" + cols + "</cols>" +
+      "<sheetData>" + body + "</sheetData>" +
+      (S.merges.length ? '<mergeCells count="' + S.merges.length + '">' + S.merges.map(function (m) { return '<mergeCell ref="' + m + '"/>'; }).join("") + "</mergeCells>" : "") +
+      (S.validations.length ? '<dataValidations count="' + S.validations.length + '">' + S.validations.map(function (sq) {
+        return '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" sqref="' + sq + '"><formula1>"交"</formula1></dataValidation>';
+      }).join("") + "</dataValidations>" : "") +
+      '<printOptions horizontalCentered="1"/>' +
+      '<pageMargins left="0.35" right="0.3" top="0.4" bottom="0.3" header="0" footer="0"/>' +
+      '<pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1"/>' +
+      "</worksheet>";
+  }
+
+  function buildXlsx(key) {
+    var S = buildForm(key);
+    var book = new StyleBook();
+    var sheetXml = sheetXmlOf(S, book);   /* 先に作るとスタイル表がそろう */
+    var name = (+key.split("-")[1]) + "月分";
+    var files = [];
+    var add = function (n, t) { files.push({ name: n, data: utf8(t) }); };
+    add("[Content_Types].xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+      '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+      '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+      '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
+    add("_rels/.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    add("xl/workbook.xml",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<sheets><sheet name="' + xmlEsc(name) + '" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>');
+    add("xl/_rels/workbook.xml.rels",
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+      '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    add("xl/worksheets/sheet1.xml", sheetXml);
+    add("xl/styles.xml", book.xml());
+    return zip(files);
+  }
+
+  function utf8(str) { return new TextEncoder().encode(str); }
+  var CRC_TABLE = (function () {
+    var t = new Uint32Array(256);
+    for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; }
+    return t;
+  })();
+  function crc32(buf) { var c = 0xFFFFFFFF; for (var i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function zip(files) {
+    var parts = [], central = [], offset = 0;
+    var u16 = function (n) { return [n & 255, (n >>> 8) & 255]; };
+    var u32 = function (n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; };
+    files.forEach(function (f) {
+      var name = utf8(f.name), crc = crc32(f.data), size = f.data.length;
+      var head = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(crc), u32(size), u32(size), u16(name.length), u16(0));
+      parts.push(new Uint8Array(head), name, f.data);
+      central.push({ name: name, crc: crc, size: size, offset: offset });
+      offset += head.length + name.length + size;
+    });
+    var cdStart = offset, cdSize = 0;
+    central.forEach(function (c) {
+      var h = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0), u32(c.crc), u32(c.size), u32(c.size),
+        u16(c.name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(c.offset));
+      parts.push(new Uint8Array(h), c.name);
+      cdSize += h.length + c.name.length;
+    });
+    parts.push(new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length), u32(cdSize), u32(cdStart), u16(0))));
+    return new Blob(parts, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+
+  function xlsxName() {
+    return "運転日誌_" + monthLabel(curMonth) + ".xlsx";
+  }
+  function checkBeforeExport() {
+    var list = monthTrips(curMonth);
+    if (!list.length) { $("xlsxNote").textContent = "この月の記録がありません。"; return false; }
+    var run = list.filter(function (t) { return t.running; }).length;
+    var noKm = list.filter(function (t) { return !t.running && t.km == null; }).length;
+    var msgs = [];
+    if (run) msgs.push("使用中の記録が1件あります（Excelには入りません）");
+    if (noKm) msgs.push("距離が空の記録が" + noKm + "件あります");
+    if (msgs.length && !confirm(msgs.join("。") + "。このまま出力しますか？")) return false;
+    return true;
+  }
+  $("xlsxSave").addEventListener("click", function () {
+    if (!checkBeforeExport()) return;
+    var blob = buildXlsx(curMonth);
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = xlsxName();
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+    $("xlsxNote").textContent = "「" + xlsxName() + "」を保存しました。";
+  });
+  (function () {
+    try {
+      var f = new File(["x"], "t.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      $("xlsxShare").hidden = !(navigator.share && navigator.canShare && navigator.canShare({ files: [f] }));
+    } catch (e) { $("xlsxShare").hidden = true; }
+  })();
+  $("xlsxShare").addEventListener("click", function () {
+    if (!checkBeforeExport()) return;
+    var file = new File([buildXlsx(curMonth)], xlsxName(), { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    navigator.share({ files: [file], title: xlsxName() })["catch"](function (e) {
+      if (!e || e.name !== "AbortError") $("xlsxNote").textContent = "送れませんでした。「Excelファイルで保存」をお使いください。";
+    });
+  });
+
+  /* ---------- 引っ越し ---------- */
+  var BK_APP = "unten-nisshi-backup";
+  $("bkSave").addEventListener("click", function () {
+    var text = JSON.stringify({ app: BK_APP, version: 1, savedAt: Date.now(), trips: trips, settings: settings, months: months });
+    var name = "運転日誌引っ越し_" + dateKey(new Date()).replace(/-/g, "") + ".txt";
+    var url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
+    var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    $("bkNote").textContent = "保存しました";
+  });
+  $("bkLoad").addEventListener("click", function () { $("bkFile").click(); });
+  $("bkFile").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    var fr = new FileReader();
+    fr.onload = function () {
+      var o = null;
+      try { o = JSON.parse(String(fr.result || "")); } catch (err) { o = null; }
+      if (!o || o.app !== BK_APP || !Array.isArray(o.trips)) { alert("運転日誌の引っ越しファイルではありません。"); return; }
+      var have = {}; trips.forEach(function (t) { have[t.id] = 1; });
+      var add = o.trips.filter(function (t) { return t && t.id && !have[t.id]; });
+      if (!confirm(add.length + "件の記録を追加します。今の記録は消えません。読み込みますか？")) return;
+      trips = trips.concat(add);
+      Object.keys(o.settings || {}).forEach(function (k) { if (settings[k] == null || settings[k] === "") settings[k] = o.settings[k]; });
+      Object.keys(o.months || {}).forEach(function (k) { if (!months[k]) months[k] = o.months[k]; });
+      saveTrips(); saveSettings(); saveMonths(); render();
+      alert(add.length + "件を追加しました。");
+    };
+    fr.readAsText(f, "utf-8");
+  });
+
+  /* ---------- 起動 ---------- */
+  trips = readLS(LS_TRIPS, []) || [];
+  settings = readLS(LS_SET, {}) || {};
+  months = readLS(LS_MONTH, {}) || {};
+  curMonth = monthOf(dateKey(new Date()));
+  $("fillDate").value = dateKey(new Date());
+  if (!settings.base) $("setCard").open = true;
+  render();
+  setInterval(function () { if (activeTrip() && document.activeElement.tagName !== "INPUT") renderNow(); }, 30000);
+  window.__unten = { buildXlsx: buildXlsx, setMonth: function (k) { curMonth = k; render(); } };
+})();
+</script>
+</body>
+</html>
