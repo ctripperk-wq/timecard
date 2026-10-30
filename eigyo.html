@@ -381,6 +381,25 @@
     .key:active { transform: none; }
   }
   .hint { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; text-align: center; }
+  /* ---------- 時刻を指定して打刻 ---------- */
+  .settime { margin-top: 10px; text-align: center; }
+  .settime-toggle {
+    background: none; border: 0; padding: 6px 4px; cursor: pointer;
+    font-size: 13px; font-weight: 700; color: var(--accent); text-decoration: underline;
+  }
+  .settime-box {
+    margin-top: 6px; padding: 12px; border-radius: 12px; text-align: left;
+    background: var(--accent-soft); border: 1px solid var(--accent-line);
+  }
+  .settime-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .settime-label { font-size: 14px; font-weight: 700; }
+  .settime .tf input { font-size: 20px; width: 3.2em; padding: 8px 6px; text-align: center; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
+  .settime-note { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.5; }
+  .settime-note.err { color: var(--out); font-weight: 700; }
+  .settime-loc { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--accent-line); }
+  .settime-loc .settime-label { display: block; margin-bottom: 6px; }
+  .st-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .st-seg button { padding: 9px 6px; font-size: 13.5px; }
 
   /* ---------- punch log ---------- */
   .log { display: grid; gap: 10px; }
@@ -1030,6 +1049,25 @@
           <span class="key-sub mono" id="keySub">--:--</span>
         </button>
         <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
+        <div class="settime">
+          <button class="settime-toggle" id="setTimeBtn">時刻を指定して打刻する</button>
+          <div class="settime-box" id="setTimeBox" hidden>
+            <div class="settime-row">
+              <span class="settime-label" id="setTimeLabel">出勤の時刻</span>
+              <span id="setTimeField"></span>
+              <button class="btn" id="setTimeNow">今の時刻</button>
+            </div>
+            <p class="settime-note" id="setTimeNote">時刻を入れてから上のボタンを押してください。</p>
+            <div class="settime-loc">
+              <span class="settime-label">訪問先の位置</span>
+              <div class="seg st-seg" id="stLocSeg">
+                <button data-m="here">押した場所</button><button data-m="site">訪問先名から</button>
+                <button data-m="map">地図で選ぶ</button><button data-m="none">記録しない</button>
+              </div>
+              <p class="settime-note" id="stLocNote"></p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="card" id="crewCard" hidden>
@@ -1542,6 +1580,131 @@
   }
 
   /* ---------- punch ---------- */
+  /* ---------- 時刻を指定して打刻 ----------
+     押した時刻ではなく、入力した時刻で出勤・退勤を記録する。位置は押した場所で取る。 */
+  var customTime = false;
+  function openSetTime() {
+    customTime = true;
+    $("setTimeField").innerHTML = timeFieldHTML("st", clockOf(Date.now()));
+    Array.prototype.forEach.call($("setTimeField").querySelectorAll("input"), function (inp) {
+      inp.addEventListener("input", function () { previewSetTime(); tick(); });
+    });
+    previewSetTime();
+    renderSetTime();
+    tick();
+  }
+  function closeSetTime() {
+    customTime = false;
+    $("setTimeField").innerHTML = "";
+    stLocMode = "here"; stLoc = null; stLocSrc = "";
+    renderSetTime();
+    tick();
+  }
+
+  /* 時刻を指定したときの訪問先の位置：押した場所／訪問先名から／地図で選ぶ／記録しない */
+  var stLocMode = "here", stLoc = null, stLocSrc = "";
+  function stPlaceName() {
+    var act = activeRecord();
+    return $("place").value.trim() || (act && act.place) || "";
+  }
+  function renderStLoc() {
+    Array.prototype.forEach.call($("stLocSeg").querySelectorAll("button"), function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-m") === stLocMode ? "true" : "false");
+    });
+    var note = $("stLocNote"), msg = "", err = false;
+    if (stLocMode === "here") {
+      msg = "打刻ボタンを押した場所の位置を記録します。";
+    } else if (stLocMode === "site") {
+      var name = stPlaceName();
+      var hit = name ? placeLocation(name) : null;
+      if (hit) {
+        stLoc = hit.loc;
+        stLocSrc = "過去の記録（" + hit.date.slice(5).replace("-", "/") + "）から";
+        msg = "「" + name + "」で前に打刻した位置（" + hit.date.slice(5).replace("-", "/") + "）を使います。";
+      } else {
+        stLoc = null;
+        err = true;
+        msg = name ? "「" + name + "」の位置は記録にありません。「地図で選ぶ」を使ってください。" : "上の訪問先名を入れてください。";
+      }
+    } else if (stLocMode === "map") {
+      if (stLoc) msg = "地図で選んだ位置（" + stLoc.lat + ", " + stLoc.lng + "）を使います。選び直すときは「地図で選ぶ」をもう一度押します。";
+      else { err = true; msg = "「地図で選ぶ」を押して、訪問先の位置を選んでください。"; }
+    } else {
+      msg = "位置は記録しません。";
+    }
+    note.textContent = msg;
+    note.classList.toggle("err", err);
+  }
+  function setStLocMode(m) {
+    if (m === "map") {
+      openMapPicker(stLocMode === "map" ? stLoc : null, function (loc) {
+        stLocMode = "map"; stLoc = loc; stLocSrc = "地図で指定";
+        renderStLoc();
+      });
+      return;
+    }
+    stLocMode = m;
+    stLoc = null; stLocSrc = "";
+    renderStLoc();
+  }
+  /* 打刻に使う位置。null なら押した場所を取る。エラーのときは error を返す。 */
+  function stLocPlan() {
+    if (stLocMode === "here") return null;
+    if (stLocMode === "none") return { loc: null, src: "" };
+    if (stLocMode === "site") renderStLoc();
+    if (!stLoc) return { error: stLocMode === "site" ? "この訪問先の位置が記録にありません。地図で選ぶか、押した場所にしてください。" : "地図で訪問先の位置を選んでください。" };
+    return { loc: stLoc, src: stLocSrc };
+  }
+  function setTimeNote(msg, isErr) {
+    var n = $("setTimeNote");
+    n.textContent = msg || "時刻を入れてから上のボタンを押してください。位置は押した場所で記録します。";
+    n.classList.toggle("err", !!isErr);
+  }
+  /* 入力中の時刻が、何日の何時として記録されるかを先に見せる */
+  function previewSetTime() {
+    if (!customTime) return;
+    var act = activeRecord();
+    var p = chosenTime(act);
+    if (p.error) { setTimeNote(p.error, true); return; }
+    var d = new Date(p.at);
+    var later = p.at > Date.now() + 60000;
+    setTimeNote((d.getMonth() + 1) + "/" + d.getDate() + "（" + WD[d.getDay()] + "）" + clockOf(p.at) +
+      " で" + (act ? "退勤" : "出勤") + "します" + (later ? "（これから先の時刻）" : "") + "。", false);
+  }
+  function renderSetTime() {
+    var act = activeRecord();
+    $("setTimeBtn").textContent = customTime ? "今の時刻で打刻する（指定をやめる）" : "時刻を指定して打刻する";
+    $("setTimeBox").hidden = !customTime;
+    $("setTimeLabel").textContent = (act ? "退勤" : "出勤") + "の時刻";
+    if (customTime) renderStLoc();
+  }
+  /* 入力した時刻を日時にする。これから先の時刻でもよい。おかしい時はエラーの文を返す。
+     出勤は今日の時刻。退勤は、出勤から16時間以内で、今にいちばん近い日の時刻（夜勤の日またぎに対応）。 */
+  var MAX_SHIFT_MS = 16 * 3600000;
+  function chosenTime(act) {
+    var v = readTimeField($("setTimeBox"), "st");
+    if (!v) return { error: "時刻を入れてください。" };
+    var hm = v.split(":");
+    var mk = function (base, addDays) {
+      var b = new Date(base);
+      return new Date(b.getFullYear(), b.getMonth(), b.getDate() + addDays, +hm[0], +hm[1]).getTime();
+    };
+    var now = Date.now(), at;
+    if (act) {
+      var cands = [mk(act.inAt, 0), mk(act.inAt, 1), mk(now, 0)].filter(function (x) {
+        return x > act.inAt && x - act.inAt <= MAX_SHIFT_MS;
+      });
+      if (!cands.length) return { error: "退勤の時刻が、出勤（" + clockOf(act.inAt) + "）より前か、16時間以上あとになっています。" };
+      cands.sort(function (a, b) { return Math.abs(a - now) - Math.abs(b - now); });
+      return { at: cands[0] };
+    }
+    at = mk(now, 0);
+    var today = dayOf(dateKey(new Date()));
+    var last = today && today.sessions[today.sessions.length - 1];
+    if (last && last.outAt && at < last.outAt) return { error: "前の退勤（" + clockOf(last.outAt) + "）より前の時刻です。" };
+    return { at: at };
+  }
+
   function punch() {
     if (!meName) return;
     /* 指が滑って二度押ししても1回しか打刻しない */
@@ -1555,16 +1718,35 @@
       fc.classList.add("flash");
       return;
     }
-    lastPunchAt = Date.now();
     var act = activeRecord();
+    var now = Date.now();
+    var typed = false;
+    var locPlan = null;   /* null なら押した場所の位置を取る */
+    if (customTime) {
+      var picked = chosenTime(act);
+      if (picked.error) {
+        setTimeNote(picked.error, true);
+        try { $("setTimeBox").scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+        return;
+      }
+      locPlan = stLocPlan();
+      if (locPlan && locPlan.error) {
+        $("stLocNote").textContent = locPlan.error;
+        $("stLocNote").classList.add("err");
+        try { $("setTimeBox").scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+        return;
+      }
+      now = picked.at;
+      typed = true;
+    }
+    lastPunchAt = Date.now();
     busy = true;
     $("key").disabled = true;
     setGeo("locating", "位置情報 取得中…");
 
-    var now = Date.now();
     var target;
     if (act) {
-      patchRecord(act.id, { outAt: now, place: $("place").value.trim() || act.place });
+      patchRecord(act.id, { outAt: now, outTyped: typed || undefined, place: $("place").value.trim() || act.place });
       target = { id: act.id, field: "outLoc" };
       /* 次の訪問先を入力できるように空にする */
       $("place").value = "";
@@ -1579,6 +1761,7 @@
         inLoc: null,
         outLoc: null
       };
+      if (typed) rec0.inTyped = true;
       /* 段取りの訪問先で出勤したら、業務内容とメンバーも入れる */
       var plan = todayPlan();
       if (plan && plan.p && rec0.place === plan.p) {
@@ -1589,13 +1772,17 @@
       }
       target = { id: createRecord(rec0), field: "inLoc" };
     }
+    /* 次の打刻はまた「押した時刻」に戻す */
+    if (customTime) closeSetTime();
     render();
 
-    getLocation().then(function (loc) {
-      if (!loc) { setGeo("fail", "位置情報 記録できず"); return; }
-      setGeo("ok", "位置情報 記録しました");
+    var locWork = locPlan ? Promise.resolve(locPlan.loc) : getLocation();
+    locWork.then(function (loc) {
+      if (!loc) { setGeo(locPlan ? "idle" : "fail", locPlan ? "位置情報 記録しない" : "位置情報 記録できず"); return; }
+      setGeo("ok", locPlan ? "位置 " + locPlan.src : "位置情報 記録しました");
       var patch = {};
       patch[target.field] = loc;
+      if (locPlan) patch.locSrc = locPlan.src;
       /* 訪問先名が空なら、過去に打刻した地点の近くかどうかで訪問先名を入れる */
       var rec = records.filter(function (x) { return x.id === target.id; })[0];
       if (rec && !(rec.place || "").trim()) {
@@ -1676,7 +1863,9 @@
     var d = new Date();
     $("nowTime").innerHTML = pad(d.getHours()) + ":" + pad(d.getMinutes()) + '<span class="sec">:' + pad(d.getSeconds()) + "</span>";
     $("nowDate").textContent = d.getFullYear() + "年" + (d.getMonth() + 1) + "月" + d.getDate() + "日（" + WD[d.getDay()] + "）";
-    $("keySub").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    $("keySub").textContent = customTime
+      ? "指定 " + (readTimeField($("setTimeBox"), "st") || "--:--")
+      : pad(d.getHours()) + ":" + pad(d.getMinutes());
     var act = activeRecord();
     if (act) {
       var hold = Date.now() - act.inAt;
@@ -1684,7 +1873,9 @@
       var extra = today ? today.holdMs : 0;
       var work = Math.max(0, hold + extra - (act.breakMin || BREAK_DEFAULT) * 60000);
       $("roValue").innerHTML = fmtHMS(hold).replace(/:(\d\d)$/, '<span class="sec">:$1</span>');
-      $("roSub").textContent = "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
+      $("roSub").textContent = hold < 0
+        ? "出勤 " + clockOf(act.inAt) + " で打刻済み（あと " + fmtHM(-hold) + " で始まります）"
+        : "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
     }
     renderDock();
   }
@@ -1722,7 +1913,7 @@
     pendingRender = false;
     renderGate();
     renderView();
-    if (meName) { renderPunch(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); renderPlanSum(); }
+    if (meName) { renderPunch(); renderSetTime(); renderSite(); renderCrew(); renderTrip(); renderToday(); renderSummaries(); renderPlanSum(); }
     renderPlanInbox();
     renderForgot();
     renderNear();
@@ -3596,6 +3787,8 @@
           var parts = [];
           if (d.sessions.some(function (r) { return r.manual; })) parts.push("手入力");
           if (d.sessions.some(function (r) { return r.outFixed; })) parts.push("退勤は押し忘れを後から補完");
+          if (d.sessions.some(function (r) { return r.inTyped; })) parts.push("出勤は時刻を指定して打刻");
+          if (d.sessions.some(function (r) { return r.outTyped; })) parts.push("退勤は時刻を指定して打刻");
           var src = d.sessions.map(function (r) { return r.locSrc; }).filter(Boolean)[0];
           if (src) parts.push("位置は" + src);
           return parts.join("・");
@@ -4219,7 +4412,8 @@
     if (d.breakMin * 60000 > d.holdMs && !d.open) out.push("休憩（" + fmtHM(d.breakMin * 60000) + "）が拘束より長くなっています。");
     d.sessions.forEach(function (r, i) {
       if (r.outAt && r.outAt <= r.inAt) out.push((r.place || "訪問先名なし") + "の退勤が出勤より前になっています。");
-      if (r.inAt > Date.now() + 60000) out.push((r.place || "訪問先名なし") + "の出勤が、まだ来ていない時刻です。");
+      /* 時刻を指定して先の時刻で打刻したものは、本人が選んだので知らせない */
+      if (!r.inTyped && r.inAt > Date.now() + 60000) out.push((r.place || "訪問先名なし") + "の出勤が、まだ来ていない時刻です。");
       var prev = d.sessions[i - 1];
       if (prev && prev.outAt && r.inAt < prev.outAt) out.push("打刻の時間が重なっています（" + clockOf(r.inAt) + " と " + clockOf(prev.outAt) + "）。");
       if (prev && prev.outAt && r.place && prev.place === r.place && r.inAt - prev.outAt < 10 * 60000) {
@@ -4856,6 +5050,19 @@
   });
 
   $("key").addEventListener("click", punch);
+  $("setTimeBtn").addEventListener("click", function () { if (customTime) closeSetTime(); else openSetTime(); });
+  Array.prototype.forEach.call($("stLocSeg").querySelectorAll("button"), function (b) {
+    b.addEventListener("click", function () { setStLocMode(b.getAttribute("data-m")); });
+  });
+  /* 「訪問先名から」のときは、訪問先名を書き換えたら位置も探し直す */
+  $("place").addEventListener("input", function () { if (customTime && stLocMode === "site") renderStLoc(); });
+  $("setTimeNow").addEventListener("click", function () {
+    var d = new Date();
+    $("setTimeBox").querySelector(".st-h").value = d.getHours();
+    $("setTimeBox").querySelector(".st-m").value = pad(d.getMinutes());
+    previewSetTime();
+    tick();
+  });
   $("dockKey").addEventListener("click", punch);
   if ("IntersectionObserver" in window) {
     new IntersectionObserver(function (entries) {
