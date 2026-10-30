@@ -14,6 +14,8 @@
   [hidden] { display: none !important; }
 </style>
 <title>現場タイムカード</title>
+<link rel="icon" type="image/png" sizes="192x192" href="icons/genba-timecard-192.png">
+<link rel="apple-touch-icon" href="icons/genba-timecard-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
@@ -419,6 +421,46 @@
   .settime-loc .settime-label { display: block; margin-bottom: 6px; }
   .seg.st-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
   .seg.st-seg button { padding: 10px 6px; font-size: 14px; white-space: nowrap; }
+  /* よく使う時刻（1回押すだけで時・分が入る） */
+  .st-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .st-quick:empty { display: none; }
+  .st-quick .rc-label { font-size: 11px; color: var(--ink-2); margin-right: 2px; }
+  .st-quick .rc { font-family: "IBM Plex Mono", monospace; font-size: 16px; padding: 7px 14px; }
+  .st-quick .rc[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+  /* これから先の時刻で打刻した「予定」 */
+  .yotei {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 10px;
+    padding: 9px 10px; border-radius: 10px; background: var(--amber-soft); border: 1px solid var(--amber);
+  }
+  .yotei-tag, .tl-badge, .log-badge {
+    font-size: 11px; font-weight: 700; color: var(--amber); border: 1px solid var(--amber);
+    border-radius: 999px; padding: 1px 8px; line-height: 1.5; white-space: nowrap;
+  }
+  .yotei-text { flex: 1 1 160px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+  .yotei .btn { flex: none; padding: 8px 12px; font-size: 14px; font-weight: 700; }
+  .tl-badge, .log-badge { margin-left: 6px; vertical-align: 2px; }
+
+  /* 打刻の直後に出す「取り消す」 */
+  .undo-bar {
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 40;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    width: calc(100% - 28px); max-width: 540px; box-sizing: border-box;
+    display: flex; align-items: center; gap: 10px; overflow: hidden;
+    padding: 12px 12px 14px 16px; border-radius: 12px;
+    background: var(--ink); color: var(--surface); box-shadow: 0 10px 28px -10px rgba(0,0,0,.55);
+  }
+  body.has-dock .undo-bar { bottom: calc(92px + env(safe-area-inset-bottom)); }
+  .undo-text { flex: 1; font-size: 14.5px; line-height: 1.45; }
+  .undo-btn {
+    flex: none; border: 0; border-radius: 9px; padding: 10px 14px; cursor: pointer;
+    font-size: 15px; font-weight: 700; background: var(--surface); color: var(--ink);
+  }
+  .undo-btn[hidden] { display: none; }
+  .undo-meter {
+    position: absolute; left: 0; bottom: 0; height: 4px; width: 100%;
+    background: var(--accent-line); transform-origin: left center;
+  }
 
   /* ---------- punch log ---------- */
   .log { display: grid; gap: 10px; }
@@ -1051,6 +1093,11 @@
           <div class="readout-label" id="roLabel">本日の実働時間</div>
           <div class="readout-value mono" id="roValue">0:00</div>
           <div class="readout-sub" id="roSub">出勤ボタンを押すと打刻と同時に位置情報を記録します。</div>
+          <div class="yotei" id="yoteiBox" hidden>
+            <span class="yotei-tag">予定</span>
+            <span class="yotei-text" id="yoteiText"></span>
+            <button class="btn" id="yoteiNow">今の時刻に直す</button>
+          </div>
         </div>
 
         <div class="site">
@@ -1083,6 +1130,7 @@
               <span id="setTimeField"></span>
               <button class="btn" id="setTimeNow">今の時刻</button>
             </div>
+            <div class="st-quick" id="stQuick"></div>
             <p class="settime-note" id="setTimeNote">時刻を入れてから、いちばん上の出勤・退勤ボタンを押してください。</p>
             <div class="settime-loc">
               <span class="settime-label">現場の位置</span>
@@ -1265,6 +1313,11 @@
       <span class="dock-label" id="dockLabel">出勤</span>
       <span class="dock-sub" id="dockSub"></span>
     </button>
+  </div>
+  <div class="undo-bar" id="undoBar" role="status" aria-live="polite" hidden>
+    <span class="undo-text" id="undoText"></span>
+    <button class="undo-btn" id="undoBtn">取り消す</button>
+    <i class="undo-meter" id="undoMeter"></i>
   </div>
   <div class="mapmodal" id="ocrModal" hidden>
     <div class="mapbox">
@@ -1613,7 +1666,7 @@
     customTime = true;
     $("setTimeField").innerHTML = timeFieldHTML("st", clockOf(Date.now()));
     Array.prototype.forEach.call($("setTimeField").querySelectorAll("input"), function (inp) {
-      inp.addEventListener("input", function () { previewSetTime(); tick(); });
+      inp.addEventListener("input", function () { previewSetTime(); renderStQuick(); tick(); });
     });
     previewSetTime();
     renderSetTime();
@@ -1708,7 +1761,44 @@
       : "押し忘れたときや、決まった時刻で打刻するとき";
     $("setTimeBox").hidden = !customTime;
     $("setTimeLabel").textContent = (act ? "退勤" : "出勤") + "の時刻";
-    if (customTime) renderStLoc();
+    if (customTime) { renderStLoc(); renderStQuick(); }
+  }
+
+  /* よく使う時刻：最近90日の出勤（退勤）時刻を数えて多い順に4つ。押して打った時刻は15分単位に丸め、
+     時刻を指定した打刻はそのまま数える。記録が少ないうちは、よくある始業・終業の時刻で埋める。 */
+  var ST_DEFAULT = { in: ["08:00", "07:30", "08:30", "07:00"], out: ["17:00", "17:30", "18:00", "16:30"] };
+  function quickTimes(kind) {
+    var since = Date.now() - 90 * 86400000, count = {}, last = {};
+    records.forEach(function (r) {
+      var at = kind === "in" ? r.inAt : r.outAt;
+      if (!at || at < since || r.manual) return;
+      var d = new Date(at), m = d.getHours() * 60 + d.getMinutes();
+      if (!(kind === "in" ? r.inTyped : r.outTyped)) m = Math.round(m / 15) * 15 % 1440;
+      var k = pad(Math.floor(m / 60)) + ":" + pad(m % 60);
+      count[k] = (count[k] || 0) + 1;
+      last[k] = Math.max(last[k] || 0, at);
+    });
+    var list = Object.keys(count).sort(function (a, b) { return count[b] - count[a] || last[b] - last[a]; }).slice(0, 4);
+    ST_DEFAULT[kind].forEach(function (k) { if (list.length < 4 && list.indexOf(k) < 0) list.push(k); });
+    return list.sort();
+  }
+  function renderStQuick() {
+    var act = activeRecord();
+    var cur = readTimeField($("setTimeBox"), "st");
+    var box = $("stQuick");
+    box.innerHTML = '<span class="rc-label">よく使う時刻</span>' + quickTimes(act ? "out" : "in").map(function (k) {
+      return '<button class="rc" data-t="' + k + '" aria-pressed="' + (k === cur) + '">' + k + "</button>";
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("[data-t]"), function (b) {
+      b.addEventListener("click", function () {
+        var p = b.getAttribute("data-t").split(":");
+        $("setTimeBox").querySelector(".st-h").value = +p[0];
+        $("setTimeBox").querySelector(".st-m").value = p[1];
+        previewSetTime();
+        renderStQuick();
+        tick();
+      });
+    });
   }
   /* 入力した時刻を日時にする。これから先の時刻でもよい。おかしい時はエラーの文を返す。
      出勤は今日の時刻。退勤は、出勤から16時間以内で、今にいちばん近い日の時刻（夜勤の日またぎに対応）。 */
@@ -1771,12 +1861,19 @@
       now = picked.at;
       typed = true;
     }
+    /* 出勤が「予定」（これから先の時刻）のまま退勤を押すと、退勤が出勤より前になる */
+    if (act && now <= act.inAt) {
+      showBar("出勤は " + clockOf(act.inAt) + " の予定のままです。先に「今の時刻に直す」を押してください。", null);
+      return;
+    }
     lastPunchAt = Date.now();
     busy = true;
     $("key").disabled = true;
     setGeo("locating", "位置情報 取得中…");
 
     var target;
+    /* 取り消すときに戻す内容（退勤は打刻前の記録に戻し、出勤は作った記録を消す） */
+    var undo = { before: act ? JSON.parse(JSON.stringify(act)) : null, place: $("place").value, undone: false };
     if (act) {
       patchRecord(act.id, { outAt: now, outTyped: typed || undefined, place: $("place").value.trim() || act.place });
       target = { id: act.id, field: "outLoc" };
@@ -1799,17 +1896,22 @@
       if (plan && plan.p && rec0.place === plan.p) {
         if (plan.t) rec0.task = plan.t;
         rec0.crew = crewFromPlan(plan);
+        undo.plan = plan;
+        undo.planUsed = plan.used;
         plan.used = true;
         savePlans();
       }
       target = { id: createRecord(rec0), field: "inLoc" };
     }
+    undo.id = target.id;
+    showBar((act ? "退勤" : "出勤") + " " + clockOf(now) + (now > Date.now() + 60000 ? "（予定）" : "") + " を記録しました。", undo);
     /* 次の打刻はまた「押した時刻」に戻す */
     if (customTime) closeSetTime();
     render();
 
     var locWork = locPlan ? Promise.resolve(locPlan.loc) : getLocation();
     locWork.then(function (loc) {
+      if (undo.undone) return;
       if (!loc) { setGeo(locPlan ? "idle" : "fail", locPlan ? "位置情報 記録しない" : "位置情報 記録できず"); return; }
       setGeo("ok", locPlan ? "位置 " + locPlan.src : "位置情報 記録しました");
       var patch = {};
@@ -1831,6 +1933,92 @@
       render();
       promptAlc(target.field === "outLoc");
     });
+  }
+
+  /* ---------- 打刻の直後10秒だけ「取り消す」を出す ----------
+     undo が null のときは、取り消しボタンなしの知らせだけを6秒出す。 */
+  var UNDO_MS = 10000, barTimer = null, barUndo = null;
+  function showBar(text, undo) {
+    clearInterval(barTimer);
+    barUndo = undo;
+    $("undoText").textContent = text;
+    $("undoBtn").hidden = !undo;
+    $("undoBar").hidden = false;
+    var span = undo ? UNDO_MS : 6000, until = Date.now() + span, meter = $("undoMeter");
+    var step = function () {
+      var left = until - Date.now();
+      if (left <= 0) { hideBar(); return; }
+      meter.style.transform = "scaleX(" + (left / span) + ")";
+      if (undo) $("undoBtn").textContent = "取り消す（" + Math.ceil(left / 1000) + "）";
+    };
+    step();
+    barTimer = setInterval(step, 200);
+  }
+  function hideBar() {
+    clearInterval(barTimer);
+    barUndo = null;
+    $("undoBar").hidden = true;
+  }
+  function undoPunch() {
+    var u = barUndo;
+    if (!u) return;
+    u.undone = true;
+    if (u.before) {
+      /* 退勤を取り消す：打刻前の記録に戻し、勤務中に戻す */
+      records = records.map(function (r) { return r.id === u.id ? u.before : r; });
+      saveRecords();
+      $("place").value = u.before.place || "";
+    } else {
+      deleteRecord(u.id);
+      $("place").value = u.place;
+      if (u.plan) { u.plan.used = u.planUsed; savePlans(); }
+    }
+    if (autoPlaced && autoPlaced.id === u.id) autoPlaced = null;
+    busy = false;
+    lastPunchAt = 0;
+    $("key").disabled = false;
+    setGeo("idle", "位置情報 待機中");
+    render();
+    showBar((u.before ? "退勤" : "出勤") + "を取り消しました。", null);
+  }
+
+  /* ---------- これから先の時刻で打刻した「予定」を、今の時刻に直す ---------- */
+  function yoteiRecord() {
+    var later = Date.now() + 60000, hit = null;
+    records.forEach(function (r) {
+      if (r.inAt > later || (r.outAt && r.outAt > later)) {
+        if (!hit || r.inAt > hit.inAt) hit = r;
+      }
+    });
+    return hit;
+  }
+  var yoteiShown = null;   /* 表示中の内容（変わったときだけ書き換える） */
+  function renderYotei() {
+    var r = meName && yoteiRecord();
+    var isIn = r && r.inAt > Date.now() + 60000;
+    var key = r ? r.id + (isIn ? "i" : "o") + (isIn ? r.inAt : r.outAt) + "|" + Math.floor(Date.now() / 60000) : "";
+    if (key === yoteiShown) return;
+    yoteiShown = key;
+    $("yoteiBox").hidden = !r;
+    if (!r) return;
+    var at = isIn ? r.inAt : r.outAt;
+    $("yoteiText").textContent = (isIn ? "出勤" : "退勤") + " " + clockOf(at) + "（あと " + fmtHM(at - Date.now()) + "）。" +
+      (isIn ? "先に始めたときは" : "早く終わったときは") + "、今の時刻に直せます。";
+    $("yoteiNow").textContent = "今の時刻で" + (isIn ? "出勤" : "退勤") + "に直す";
+  }
+  function fixYotei() {
+    var r = yoteiRecord();
+    if (!r) return;
+    var now = Date.now();
+    if (r.inAt > now + 60000) {
+      patchRecord(r.id, { inAt: now, inTyped: undefined });
+      showBar("出勤を " + clockOf(now) + " に直しました。", null);
+    } else {
+      patchRecord(r.id, { outAt: now, outTyped: undefined });
+      showBar("退勤を " + clockOf(now) + " に直しました。", null);
+    }
+    yoteiShown = null;
+    render();
   }
 
   /* 打刻した地点が、過去に現場名を付けて打刻した地点から200m以内なら、その現場名を返す。
@@ -1909,6 +2097,7 @@
         ? "出勤 " + clockOf(act.inAt) + " で打刻済み（あと " + fmtHM(-hold) + " で始まります）"
         : "出勤 " + clockOf(act.inAt) + " から経過中 ／ 現時点の実働 " + fmtHM(work);
     }
+    renderYotei();
     renderDock();
   }
 
@@ -2184,14 +2373,15 @@
       if (!sessionTask(r)) flags.push(["task", "作業内容なし"]);
       if (!r.manual && !r.inLoc) flags.push(["loc", "出勤の位置なし"]);
       if (!r.manual && r.outAt && !r.outLoc) flags.push(["loc", "退勤の位置なし"]);
+      var later = Date.now() + 60000;
       items.push({
-        kind: "in", time: clockOf(r.inAt), id: r.id, flags: flags,
+        kind: "in", time: clockOf(r.inAt), id: r.id, flags: flags, badge: r.inAt > later,
         main: (r.place || "現場名なし") + (isNightSession(r) ? "（夜勤）" : ""),
         sub: [sessionTask(r), crew.length ? "作業員 " + crew.join("、") : ""].filter(Boolean).join(" ／ ")
       });
       items.push(r.outAt
-        ? { kind: "out", time: clockOf(r.outAt), main: "退勤", sub: "拘束 " + fmtHM(r.outAt - r.inAt) }
-        : { kind: "stay", sub: "勤務中 " + fmtHM(Date.now() - r.inAt) });
+        ? { kind: "out", time: clockOf(r.outAt), main: "退勤", sub: "拘束 " + fmtHM(r.outAt - r.inAt), badge: r.outAt > later }
+        : { kind: "stay", sub: r.inAt > later ? "あと " + fmtHM(r.inAt - Date.now()) + " で始まります" : "勤務中 " + fmtHM(Date.now() - r.inAt) });
     });
     if (!day.open) items.push({ kind: "base", main: baseEndText(c.to) });
     return '<ul class="tl">' + items.map(function (it) {
@@ -2199,7 +2389,7 @@
         '<span class="tl-time mono">' + (it.time || "") + "</span>" +
         '<span class="tl-rail"><i class="tl-dot"></i></span>' +
         '<div class="tl-body">' +
-        (it.main ? '<div class="tl-main">' + esc(it.main) + "</div>" : "") +
+        (it.main ? '<div class="tl-main">' + esc(it.main) + (it.badge ? '<span class="tl-badge">予定</span>' : "") + "</div>" : "") +
         (it.sub ? '<div class="tl-sub">' + esc(it.sub) + "</div>" : "") +
         (it.flags && it.flags.length ? '<div class="tl-flags">' + it.flags.map(function (f) {
           return '<button class="tl-flag" data-fix="' + it.id + '" data-what="' + f[0] + '">' + f[1] + "</button>";
@@ -2219,13 +2409,15 @@
     }
     var many = today.sessions.length > 1;
     var blocks = today.sessions.map(function (r, i) {
+      var later = Date.now() + 60000;
+      var badge = function (at) { return at > later ? '<span class="log-badge">予定</span>' : ""; };
       var rows = '<div class="log-row"><span class="log-tag" data-kind="in">出勤</span>' +
-        '<span class="log-time mono">' + clockOf(r.inAt) + "</span>" + locHTML(r.inLoc, r.id, "inLoc") + "</div>";
+        '<span class="log-time mono">' + clockOf(r.inAt) + badge(r.inAt) + "</span>" + locHTML(r.inLoc, r.id, "inLoc") + "</div>";
       if (r.outAt) {
         rows += '<div class="log-row"><span class="log-tag" data-kind="out">退勤</span>' +
-          '<span class="log-time mono">' + clockOf(r.outAt) + "</span>" + locHTML(r.outLoc, r.id, "outLoc") + "</div>";
+          '<span class="log-time mono">' + clockOf(r.outAt) + badge(r.outAt) + "</span>" + locHTML(r.outLoc, r.id, "outLoc") + "</div>";
       }
-      var dur = r.outAt ? fmtHM(r.outAt - r.inAt) : fmtHM(Date.now() - r.inAt) + "（勤務中）";
+      var dur = r.outAt ? fmtHM(r.outAt - r.inAt) : r.inAt > later ? "0:00（予定）" : fmtHM(Date.now() - r.inAt) + "（勤務中）";
       return '<div class="sess">' +
         '<div class="sess-head">' +
         (many ? '<span class="sess-no">' + (i + 1) + "件目</span>" : '<span class="sess-no">現場</span>') +
@@ -5093,9 +5285,12 @@
     $("setTimeBox").querySelector(".st-h").value = d.getHours();
     $("setTimeBox").querySelector(".st-m").value = pad(d.getMinutes());
     previewSetTime();
+    renderStQuick();
     tick();
   });
   $("dockKey").addEventListener("click", punch);
+  $("undoBtn").addEventListener("click", undoPunch);
+  $("yoteiNow").addEventListener("click", fixYotei);
   if ("IntersectionObserver" in window) {
     new IntersectionObserver(function (entries) {
       keyOnScreen = entries[entries.length - 1].isIntersecting;
@@ -5366,7 +5561,7 @@
   $("installNote").textContent = isIOS
     ? "iPhone / iPad：共有ボタン →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
     : /Android/.test(ua)
-      ? "Android：Chrome のメニュー →「ホーム画面に追加」で、アプリのように1タップで開けます。位置情報の確認が出たら「許可」を選んでください。"
+      ? "Android：Chrome のメニュー →「アプリをインストール」（または「ホーム画面に追加」→「インストール」）で、アプリのように1タップで開けます。ホーム画面のアイコンを長押しすると「出勤」「退勤」が出て、押すとアプリが開くと同時に打刻します（10秒間は取り消せます）。位置情報の確認が出たら「許可」を選んでください。"
       : "各社員にこのページのリンクを渡し、それぞれの端末で名前を登録してもらってください。記録は端末ごとに保存され、CSVで集約します。";
 
   if (window.claude && typeof window.claude.use === "function") {
@@ -5378,6 +5573,35 @@
     $("csvSave").hidden = false;
     $("mergeLink").hidden = false;
   }
+
+  /* ---------- ホーム画面のアイコンを長押しして「出勤」「退勤」 ----------
+     Android の Chrome だけにアプリの情報（manifest）を渡す。iPhone はホーム画面版の保存領域が
+     Safari と分かれるので、今までと同じ動きのままにしておく。 */
+  if (/Android/.test(ua) && !document.querySelector('link[rel="manifest"]')) {
+    var mf = document.createElement("link");
+    mf.rel = "manifest";
+    mf.href = "genba-timecard-app.webmanifest";
+    document.head.appendChild(mf);
+  }
+  /* ?do=in / ?do=out で開かれたら、その場で打刻する（URLからは消して、開き直しで二重に打たない） */
+  (function () {
+    var m = location.search.match(/[?&]do=(in|out)\b/);
+    if (!m) return;
+    var q = location.search.replace(/([?&])do=(in|out)&?/, "$1").replace(/[?&]$/, "");
+    try { history.replaceState(null, "", location.pathname + q + location.hash); } catch (e) {}
+    if (!meName) return;
+    view = "punch";
+    render();
+    window.scrollTo(0, 0);
+    var act = activeRecord();
+    if (m[1] === "in" && act) {
+      showBar("すでに出勤しています（" + clockOf(act.inAt) + " から" + (act.place ? "・" + act.place : "") + "）。", null);
+    } else if (m[1] === "out" && !act) {
+      showBar("まだ出勤していません。退勤は打刻していません。", null);
+    } else {
+      punch();
+    }
+  })();
 })();
 </script>
 
