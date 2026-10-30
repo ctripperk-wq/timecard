@@ -1,0 +1,59 @@
+{
+  "id": "./",
+  "name": "現場タイムカード",
+  "short_name": "現場タイムカード",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EBF0EF",
+  "theme_color": "#EBF0EF",
+  "icons": [
+    {
+      "src": "icons/genba-timecard-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/genba-timecard-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/genba-timecard-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "出勤",
+      "short_name": "出勤",
+      "description": "今の時刻で出勤を打刻します",
+      "url": "./?do=in",
+      "icons": [
+        {
+          "src": "icons/genba-timecard-in.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "退勤",
+      "short_name": "退勤",
+      "description": "今の時刻で退勤を打刻します",
+      "url": "./?do=out",
+      "icons": [
+        {
+          "src": "icons/genba-timecard-out.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
