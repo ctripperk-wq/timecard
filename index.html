@@ -382,15 +382,34 @@
   }
   .hint { font-size: 12px; color: var(--ink-3); margin: 10px 0 0; text-align: center; }
   /* ---------- 時刻を指定して打刻 ---------- */
-  .settime { margin-top: 10px; text-align: center; }
+  .settime { margin-top: 12px; }
   .settime-toggle {
-    background: none; border: 0; padding: 6px 4px; cursor: pointer;
-    font-size: 13px; font-weight: 700; color: var(--accent); text-decoration: underline;
+    width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+    padding: 12px 14px; border-radius: 12px;
+    background: var(--surface); color: var(--accent-ink);
+    border: 2px solid var(--accent); box-shadow: 0 2px 0 var(--accent-line);
   }
+  :root[data-theme="dark"] .settime-toggle { color: var(--accent); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .settime-toggle { color: var(--accent); } }
+  .settime-toggle:active { transform: translateY(2px); box-shadow: none; }
+  .settime-ico { flex: none; }
+  .settime-text { flex: 1; display: grid; gap: 1px; min-width: 0; }
+  .settime-text b { font-size: 16px; font-weight: 700; line-height: 1.35; }
+  .settime-text small { font-size: 12px; color: var(--ink-2); line-height: 1.4; }
+  .settime-arrow { flex: none; font-size: 15px; }
+  .settime-toggle[aria-expanded="true"],
+  :root[data-theme="dark"] .settime-toggle[aria-expanded="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .settime-toggle[aria-expanded="true"] { color: var(--on-accent); }
+  }
+  .settime-toggle[aria-expanded="true"] small { color: var(--on-accent); opacity: .85; }
+  .settime-toggle[aria-expanded="true"] .settime-arrow { transform: rotate(180deg); }
   .settime-box {
-    margin-top: 6px; padding: 12px; border-radius: 12px; text-align: left;
-    background: var(--accent-soft); border: 1px solid var(--accent-line);
+    margin-top: 0; padding: 14px 12px 12px; text-align: left;
+    border-radius: 0 0 12px 12px; border: 2px solid var(--accent); border-top: 0;
+    background: var(--accent-soft);
   }
+  .settime-toggle[aria-expanded="true"] { border-radius: 12px 12px 0 0; box-shadow: none; }
   .settime-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .settime-label { font-size: 14px; font-weight: 700; }
   .settime .tf input { font-size: 20px; width: 3.2em; padding: 8px 6px; text-align: center; border-radius: 9px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); }
@@ -398,8 +417,8 @@
   .settime-note.err { color: var(--out); font-weight: 700; }
   .settime-loc { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--accent-line); }
   .settime-loc .settime-label { display: block; margin-bottom: 6px; }
-  .st-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-  .st-seg button { padding: 9px 6px; font-size: 13.5px; }
+  .seg.st-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .seg.st-seg button { padding: 10px 6px; font-size: 14px; white-space: nowrap; }
 
   /* ---------- punch log ---------- */
   .log { display: grid; gap: 10px; }
@@ -1050,14 +1069,21 @@
         </button>
         <p class="hint" id="hint">休憩 1:30 を自動で差し引いて実働時間を計算します。</p>
         <div class="settime">
-          <button class="settime-toggle" id="setTimeBtn">時刻を指定して打刻する</button>
+          <button class="settime-toggle" id="setTimeBtn" aria-expanded="false">
+            <svg class="settime-ico" width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 6.5V12l3.5 2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            <span class="settime-text">
+              <b id="setTimeBtnMain">時刻を指定して打刻する</b>
+              <small id="setTimeBtnSub">押し忘れたときや、決まった時刻で打刻するとき</small>
+            </span>
+            <span class="settime-arrow" aria-hidden="true">▾</span>
+          </button>
           <div class="settime-box" id="setTimeBox" hidden>
             <div class="settime-row">
               <span class="settime-label" id="setTimeLabel">出勤の時刻</span>
               <span id="setTimeField"></span>
               <button class="btn" id="setTimeNow">今の時刻</button>
             </div>
-            <p class="settime-note" id="setTimeNote">時刻を入れてから上のボタンを押してください。</p>
+            <p class="settime-note" id="setTimeNote">時刻を入れてから、いちばん上の出勤・退勤ボタンを押してください。</p>
             <div class="settime-loc">
               <span class="settime-label">現場の位置</span>
               <div class="seg st-seg" id="stLocSeg">
@@ -1657,7 +1683,7 @@
   }
   function setTimeNote(msg, isErr) {
     var n = $("setTimeNote");
-    n.textContent = msg || "時刻を入れてから上のボタンを押してください。位置は押した場所で記録します。";
+    n.textContent = msg || "時刻を入れてから、いちばん上の出勤・退勤ボタンを押してください。位置は押した場所で記録します。";
     n.classList.toggle("err", !!isErr);
   }
   /* 入力中の時刻が、何日の何時として記録されるかを先に見せる */
@@ -1673,7 +1699,13 @@
   }
   function renderSetTime() {
     var act = activeRecord();
-    $("setTimeBtn").textContent = customTime ? "今の時刻で打刻する（指定をやめる）" : "時刻を指定して打刻する";
+    $("setTimeBtn").setAttribute("aria-expanded", customTime ? "true" : "false");
+    $("setTimeBtnMain").textContent = customTime
+      ? (act ? "退勤" : "出勤") + "の時刻を指定中"
+      : "時刻を指定して打刻する";
+    $("setTimeBtnSub").textContent = customTime
+      ? "ここを押すと、指定をやめて今の時刻で打刻します"
+      : "押し忘れたときや、決まった時刻で打刻するとき";
     $("setTimeBox").hidden = !customTime;
     $("setTimeLabel").textContent = (act ? "退勤" : "出勤") + "の時刻";
     if (customTime) renderStLoc();
