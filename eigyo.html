@@ -911,6 +911,42 @@
   :root[data-theme="dark"] .day-date .sat { color: #7FB0DE; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .day-date .sat { color: #7FB0DE; } }
   .day-span { font-size: 13.5px; color: var(--ink-2); min-width: 0; }
+
+  /* 記録は月度ごとに1つずつ表示する */
+  .hist-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+  .hist-nav select {
+    flex: 1; min-width: 0; font-size: 16px; font-weight: 700; padding: 10px 8px; border-radius: 10px;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  }
+  .hist-nav .btn { flex: none; padding: 10px 12px; font-size: 14px; }
+  .hist-nav .btn[disabled] { opacity: .4; }
+
+  /* 履歴を選んで消す */
+  .del-lead {
+    background: var(--out-soft); border: 1px solid var(--out-line); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.55; color: var(--ink);
+  }
+  .del-lead b { display: block; font-size: 14.5px; color: var(--out); margin-bottom: 2px; }
+  .del-restore { margin-top: 8px; }
+  .month-pick, .day-pick { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .month-pick input, .day-pick input { width: 22px; height: 22px; accent-color: var(--out); flex: none; margin: 0; -webkit-appearance: checkbox; appearance: auto; }
+  .month-pick span { font-size: 12.5px; font-weight: 700; color: var(--out); }
+  .day.pick { grid-template-columns: 26px 62px 1fr auto; }
+  .day.pick.on { background: var(--out-soft); }
+  .delbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    padding: 10px calc(14px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--ground) 92%, transparent);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line);
+  }
+  .delbar-in { max-width: 560px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+  .delbar-text { flex: 1 1 100%; font-size: 13px; line-height: 1.5; color: var(--ink); }
+  .delbar-text.warn { color: var(--out); font-weight: 700; }
+  .delbar .btn { flex: 1 1 120px; padding: 12px 14px; font-size: 15px; font-weight: 700; }
+  .delbar .btn-danger { background: var(--out); color: var(--on-out); border-color: var(--out); }
+  .delbar .btn-danger[disabled] { opacity: .45; }
+  body.has-delbar .wrap { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
   .day-place {
     display: block; font-size: 11.5px; color: var(--ink-3);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1276,6 +1312,7 @@
           <span style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn" id="manualBtn">押し忘れを手入力</button>
             <button class="btn" id="exportBtn">CSVを書き出す</button>
+            <button class="btn" id="delBtn">履歴を消す</button>
           </span>
         </div>
         <p class="foot-note install" id="installNote"></p>
@@ -1313,6 +1350,13 @@
       <span class="dock-label" id="dockLabel">出勤</span>
       <span class="dock-sub" id="dockSub"></span>
     </button>
+  </div>
+  <div class="delbar" id="delBar" hidden>
+    <div class="delbar-in">
+      <span class="delbar-text" id="delText"></span>
+      <button class="btn btn-danger" id="delGo" data-armed="0" disabled>削除する</button>
+      <button class="btn" id="delCancel">やめる</button>
+    </div>
   </div>
   <div class="undo-bar" id="undoBar" role="status" aria-live="polite" hidden>
     <span class="undo-text" id="undoText"></span>
@@ -2141,6 +2185,7 @@
     renderMistakes();
     renderCloseQuick();
     renderTripQuick();
+    renderDelBar();
     renderHistory();
     renderOff();
     renderExport();
@@ -2513,6 +2558,7 @@
   }
 
   function dayRowHTML(d) {
+    if (delMode) return dayPickHTML(d);
     var dt = parseKey(d.date);
     var wd = WD[dt.getDay()];
     var cls = dt.getDay() === 0 ? "sun" : dt.getDay() === 6 ? "sat" : "";
@@ -2585,7 +2631,8 @@
     var all = days();
     var host = $("history");
     if (!all.length) {
-      host.innerHTML = '<p class="empty">' + (meName ? "打刻の記録がここに並びます。" : "名前を登録すると記録が始まります。") + "</p>";
+      host.innerHTML = (delMode ? delLeadHTML() : "") + '<p class="empty">' + (meName ? "打刻の記録がここに並びます。" : "名前を登録すると記録が始まります。") + "</p>";
+      if (delMode) bindDelPick(host);
       $("histNote").textContent = "";
       return;
     }
@@ -2596,14 +2643,52 @@
       index[m].days.push(d);
       index[m].total += d.workMs;
     });
-    host.innerHTML = months.map(function (m) {
+    /* 今の月度は記録がまだ無くても選べるようにする */
+    var cur = periodKey(dateKey(new Date()));
+    if (!index[cur]) {
+      index[cur] = { key: cur, days: [], total: 0 };
+      months.push(index[cur]);
+      months.sort(function (a, b) { return a.key < b.key ? 1 : -1; });
+    }
+    /* 修正欄を開く日（締めチェックなどから）があれば、その日の月度に切り替える */
+    if (openKey && index[periodKey(openKey)]) histMonth = periodKey(openKey);
+    if (!histMonth || !index[histMonth]) histMonth = cur;
+    var pos = months.map(function (m) { return m.key; }).indexOf(histMonth);
+    var shown = index[histMonth];
+    var nav = '<div class="hist-nav">' +
+      '<button class="btn" data-hm="' + (months[pos + 1] ? months[pos + 1].key : "") + '"' + (months[pos + 1] ? "" : " disabled") + ">◂ 前</button>" +
+      '<select id="histMonth" aria-label="表示する月度">' + months.map(function (m) {
+        return '<option value="' + m.key + '"' + (m.key === histMonth ? " selected" : "") + ">" +
+          periodName(m.key) + "（" + m.days.length + "日）</option>";
+      }).join("") + "</select>" +
+      '<button class="btn" data-hm="' + (months[pos - 1] ? months[pos - 1].key : "") + '"' + (months[pos - 1] ? "" : " disabled") + ">次 ▸</button>" +
+      "</div>";
+    host.innerHTML = (delMode ? delLeadHTML() : "") + nav + [shown].map(function (m) {
+      var allOn = delMode && delMonths[m.key];
       return '<div class="month"><div class="month-head"><span class="month-name">' +
         periodName(m.key) + '<small class="month-span">' + periodSpan(m.key) + "</small></span>" +
-        '<span class="month-sum">' + m.days.length +
-        '日 ／ 実働 <b class="mono">' + fmtHM(m.total) + "</b></span></div>" +
-        m.days.map(dayRowHTML).join("") + "</div>";
+        (delMode
+          ? '<label class="month-pick"><input type="checkbox" data-delmonth="' + m.key + '"' + (allOn ? " checked" : "") +
+            "><span>この月度をまとめて選ぶ</span></label>"
+          : '<span class="month-sum">' + m.days.length +
+            '日 ／ 実働 <b class="mono">' + fmtHM(m.total) + "</b></span>") + "</div>" +
+        (m.days.length ? m.days.map(dayRowHTML).join("") : '<p class="empty">この月度の打刻はまだありません。</p>') + "</div>";
     }).join("");
-    $("histNote").textContent = all.length + "日分";
+    $("histNote").textContent = "全 " + all.length + "日分";
+    $("histMonth").addEventListener("change", function () {
+      histMonth = $("histMonth").value;
+      openKey = null;
+      renderHistory();
+    });
+    Array.prototype.forEach.call(host.querySelectorAll("[data-hm]"), function (b) {
+      b.addEventListener("click", function () {
+        if (!b.getAttribute("data-hm")) return;
+        histMonth = b.getAttribute("data-hm");
+        openKey = null;
+        renderHistory();
+      });
+    });
+    if (delMode) { bindDelPick(host); return; }
 
     Array.prototype.forEach.call(host.querySelectorAll(".day"), function (b) {
       b.addEventListener("click", function () {
@@ -2614,6 +2699,153 @@
     });
     var ed = host.querySelector(".editor");
     if (ed) bindEditor(ed);
+  }
+
+  /* ================= 履歴を選んで消す =================
+     日ごと、または月度ごと（26日〜25日）に選んで消す。消すのは打刻・運行記録・休みの区分。
+     直前に消した分は端末に1回分だけ残し、「元に戻す」で戻せる。 */
+  var LS_TRASH = "eigyo-timecard-trash-v1";
+  var delMode = false, delDays = {}, delMonths = {};
+  var histMonth = null;   /* 記録の画面で表示している月度 */
+  function dayPickHTML(d) {
+    var dt = parseKey(d.date);
+    var cls = dt.getDay() === 0 ? "sun" : dt.getDay() === 6 ? "sat" : "";
+    var first = d.sessions[0], last = d.sessions[d.sessions.length - 1];
+    var on = !!delDays[d.date];
+    return '<label class="day pick day-pick' + (on ? " on" : "") + '">' +
+      '<input type="checkbox" data-delday="' + d.date + '"' + (on ? " checked" : "") + ">" +
+      '<span class="day-date"><b class="mono">' + dt.getDate() + '</b><span class="wd ' + cls + '">' + WD[dt.getDay()] + "</span></span>" +
+      '<span class="day-span"><span class="mono">' + clockOf(first.inAt) + " – " + (last.outAt ? clockOf(last.outAt) : "勤務中") + "</span>" +
+      '<span class="day-place">' + esc(d.sessions.length + "件" + (placesOf(d).length ? " ・ " + placesOf(d).join("・") : "")) + "</span></span>" +
+      '<span class="day-work mono">' + fmtHM(d.workMs) + "<small>h</small></span></label>";
+  }
+  function delLeadHTML() {
+    var t = readLS(LS_TRASH, null);
+    return '<div class="del-lead"><b>消す日を選んでください</b>' +
+      "日付の左の四角を押して選びます。月度の見出しの「まとめて選ぶ」で、その月度（26日〜25日）を全部選べます。" +
+      "打刻・運行記録・休みの区分がまとめて消えます。" +
+      (t && t.records ? '<div class="del-restore"><button class="btn" id="delRestore">前に消した ' +
+        t.label + " を元に戻す</button></div>" : "") + "</div>";
+  }
+  /* 選ばれている日付（月度で選んだときは、記録のない日の運行記録・休みも含める） */
+  function delTargets() {
+    var set = {};
+    Object.keys(delDays).forEach(function (d) { if (delDays[d]) set[d] = 1; });
+    Object.keys(delMonths).forEach(function (m) {
+      if (delMonths[m]) periodDates(m).forEach(function (d) { set[d] = 1; });
+    });
+    return Object.keys(set).sort();
+  }
+  function bindDelPick(host) {
+    Array.prototype.forEach.call(host.querySelectorAll("[data-delday]"), function (c) {
+      c.addEventListener("change", function () {
+        var d = c.getAttribute("data-delday");
+        delDays[d] = c.checked;
+        if (!c.checked) delMonths[periodKey(d)] = false;
+        renderHistory();
+      });
+    });
+    Array.prototype.forEach.call(host.querySelectorAll("[data-delmonth]"), function (c) {
+      c.addEventListener("change", function () {
+        var m = c.getAttribute("data-delmonth");
+        delMonths[m] = c.checked;
+        days().forEach(function (d) { if (periodKey(d.date) === m) delDays[d.date] = c.checked; });
+        renderHistory();
+      });
+    });
+    if ($("delRestore")) $("delRestore").addEventListener("click", restoreTrash);
+    renderDelBar();
+  }
+  function renderDelBar() {
+    /* 打刻の画面に戻ったら、選ぶのをやめる */
+    if (delMode && (view !== "log" || !meName)) { delMode = false; delDays = {}; delMonths = {}; }
+    var bar = $("delBar");
+    bar.hidden = !delMode;
+    document.body.classList.toggle("has-delbar", delMode);
+    if (!delMode) return;
+    var dates = delTargets(), set = {};
+    dates.forEach(function (d) { set[d] = 1; });
+    var recs = records.filter(function (r) { return set[r.date]; });
+    var dayN = {};
+    recs.forEach(function (r) { dayN[r.date] = 1; });
+    var go = $("delGo");
+    go.setAttribute("data-armed", "0");
+    go.disabled = !dates.length;
+    go.textContent = "削除する";
+    var unsent = recs.some(function (r) { return (r.outAt || r.inAt) > lastExportAt; });
+    var text = $("delText");
+    text.classList.toggle("warn", unsent);
+    text.textContent = !dates.length
+      ? "消す日がまだ選ばれていません。"
+      : Object.keys(dayN).length + "日分（打刻 " + recs.length + " 件）を選んでいます。" +
+        (unsent ? "まだCSVを書き出していない打刻が含まれています。" : "");
+  }
+  function openDelMode() {
+    if (!records.length && !readLS(LS_TRASH, null)) { showBar("消せる記録がありません。", null); return; }
+    delMode = true; delDays = {}; delMonths = {};
+    openKey = null;
+    renderHistory();
+    try { $("history").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) {}
+  }
+  function closeDelMode() {
+    delMode = false; delDays = {}; delMonths = {};
+    renderDelBar();
+    render();
+  }
+  function doDelete() {
+    var go = $("delGo");
+    /* 2回押さないと消えない */
+    if (go.getAttribute("data-armed") !== "1") {
+      go.setAttribute("data-armed", "1");
+      go.textContent = "もう一度押すと削除";
+      setTimeout(function () {
+        if (go.getAttribute("data-armed") !== "1") return;
+        go.setAttribute("data-armed", "0");
+        go.textContent = "削除する";
+      }, 4000);
+      return;
+    }
+    var dates = delTargets(), set = {};
+    dates.forEach(function (d) { set[d] = 1; });
+    var gone = records.filter(function (r) { return set[r.date]; });
+    var dayN = {};
+    gone.forEach(function (r) { dayN[r.date] = 1; });
+    var trash = {
+      at: Date.now(),
+      label: Object.keys(dayN).length + "日分（打刻 " + gone.length + " 件）",
+      records: gone, trips: {}, offDays: {}
+    };
+    dates.forEach(function (d) {
+      if (trips[d]) { trash.trips[d] = trips[d]; delete trips[d]; }
+      if (offDays[d]) { trash.offDays[d] = offDays[d]; delete offDays[d]; }
+    });
+    writeLS(LS_TRASH, trash);
+    records = records.filter(function (r) { return !set[r.date]; });
+    saveRecords();
+    writeLS(LS_TRIP, trips);
+    saveOff();
+    delMode = false; delDays = {}; delMonths = {};
+    renderDelBar();
+    render();
+    showBar(trash.label + " を削除しました。「履歴を消す」から元に戻せます。", null);
+  }
+  /* 直前に消した分を戻す。今ある記録は消さず、同じ打刻が無いものだけ足す。 */
+  function restoreTrash() {
+    var t = readLS(LS_TRASH, null);
+    if (!t || !t.records) return;
+    var have = {};
+    records.forEach(function (r) { have[r.id] = 1; });
+    t.records.forEach(function (r) { if (!have[r.id]) records.push(r); });
+    Object.keys(t.trips || {}).forEach(function (d) { if (!trips[d]) trips[d] = t.trips[d]; });
+    Object.keys(t.offDays || {}).forEach(function (d) { if (!offDays[d]) offDays[d] = t.offDays[d]; });
+    saveRecords();
+    writeLS(LS_TRIP, trips);
+    saveOff();
+    try { localStorage.removeItem(LS_TRASH); } catch (e) {}
+    delMode = false; delDays = {}; delMonths = {};
+    renderDelBar();
+    render();
+    showBar(t.label + " を元に戻しました。", null);
   }
 
   /* 履歴の編集画面で、あとからアルコールチェックを記録・修正する */
@@ -5384,6 +5616,9 @@
   });
 
   $("exportBtn").addEventListener("click", openExport);
+  $("delBtn").addEventListener("click", function () { if (delMode) closeDelMode(); else openDelMode(); });
+  $("delCancel").addEventListener("click", closeDelMode);
+  $("delGo").addEventListener("click", doDelete);
   $("csvClose").addEventListener("click", function () { exportOpen = false; renderExport(); });
   $("csvMonth").addEventListener("change", refreshCsvText);
 
